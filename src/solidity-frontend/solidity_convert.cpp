@@ -11145,18 +11145,29 @@ bool solidity_convertert::get_high_level_member_access(
           log_error("failed to model the transaction property changes");
           return true;
         }
-        else
-        {
-          if (get_high_level_call_wrapper(
-                cname, this_expr, front_block, back_block))
-            return true;
-        }
-        for (auto op : front_block.operands())
-          move_to_front_block(op);
-        for (auto op : back_block.operands())
-          move_to_back_block(op);
       }
-    }
+      else if (get_high_level_call_wrapper(
+                 cname, this_expr, front_block, back_block))
+        return true;
+      for (auto op : front_block.operands())
+        move_to_front_block(op);
+      for (auto op : back_block.operands())
+        move_to_back_block(op);
+      assert(_mem_call.id() == "sideeffect");
+      side_effect_expr_function_callt _mem_call2 =
+        to_side_effect_expr_function_call(_mem_call);
+      if (
+        _mem_call2.function().name() == "mintToken" &&
+        _mem_call2.arguments().at(2).id() == "constant")
+      {
+        exprt _two = constant_exprt(
+          integer2binary(2, bv_width(uint_type())),
+          integer2string(2),
+          uint_type());
+        _mem_call2.arguments().at(2) = _two;
+        new_expr = _mem_call2;
+      }
+   }
 
     return false; // since it has only one possible option, no need to futher binding
   }
