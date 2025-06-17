@@ -112,6 +112,7 @@ set(REGRESSIONS_CPP03 esbmc-cpp/cpp
                       esbmc-cpp/priority_queue
                       esbmc-cpp/queue
                       esbmc-cpp/set
+                      esbmc-cpp/unordered_set
                       esbmc-cpp/stack
                       esbmc-cpp/unix
                       esbmc-cpp/vector
@@ -170,6 +171,7 @@ if(APPLE)
                     ${REGRESSIONS_PYTHON}
                     ${REGRESSIONS_NUMPY}
                     ltl
+                    goto-transcoder
        )
 elseif(WIN32)
     # FUTURE: Add floats-regression esbmc-cpp/cpp
@@ -187,6 +189,7 @@ elseif(WIN32)
                     ${REGRESSIONS_SMTLIB}
                     ${REGRESSIONS_Z3}
                     ltl
+                    goto-transcoder
        )
 else()
   if(NOT BENCHBRINGUP)
@@ -227,6 +230,7 @@ else()
                     ${REGRESSIONS_NUMPY}
                     ltl
                     goto-coverage
+                    goto-transcoder
        )
   else()
     set(REGRESSIONS $ENV{BENCHMARK_TO_RUN}) # run a single user-specified benchmark
