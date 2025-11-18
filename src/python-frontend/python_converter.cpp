@@ -5719,12 +5719,13 @@ void python_converter::convert()
   main_type.return_type() = empty_typet();
 
   symbolt main_symbol;
-  main_symbol.id = "python_main";
-  main_symbol.name = "python_main";
+  main_symbol.id = "__ESBMC_main";
+  main_symbol.name = "__ESBMC_main";
   main_symbol.type.swap(main_type);
   main_symbol.lvalue = true;
   main_symbol.is_extern = false;
   main_symbol.file_local = false;
+  main_symbol.location = get_location_from_decl(*ast_json);
 
   main_python_file = (*ast_json)["filename"].get<std::string>();
   current_python_file = main_python_file;
@@ -5868,9 +5869,33 @@ void python_converter::convert()
     convert_expression_to_code(call);
     convert_expression_to_code(block);
 
-    main_symbol.value.swap(
-      block); // Add class definitions and global variable assignments
-    main_symbol.value.copy_to_operands(call); // Add function call
+    // Create final block with proper initialization
+    code_blockt final_block;
+
+    // Add thread start hook
+    code_function_callt thread_start_call;
+    thread_start_call.function() =
+      symbol_exprt("c:@F@__ESBMC_pthread_start_main_hook");
+    final_block.copy_to_operands(thread_start_call);
+
+    // Add class definitions and global variable assignments
+    final_block.copy_to_operands(block);
+
+    // Add function call
+    final_block.copy_to_operands(call);
+
+    // Add atexit handler
+    code_function_callt atexit_call;
+    atexit_call.function() = symbol_exprt("c:@F@__ESBMC_atexit_handler");
+    final_block.copy_to_operands(atexit_call);
+
+    // Add thread end hook
+    code_function_callt thread_end_call;
+    thread_end_call.function() =
+      symbol_exprt("c:@F@__ESBMC_pthread_end_main_hook");
+    final_block.copy_to_operands(thread_end_call);
+
+    main_symbol.value.swap(final_block);
   }
   else
   {
@@ -5938,15 +5963,35 @@ void python_converter::convert()
     exprt main_block = get_block((*ast_json)["body"]);
     codet main_code = convert_expression_to_code(main_block);
 
-    // Create the final main block with intrinsic assignments first
+    // Create the final main block with proper initialization
     code_blockt final_block;
+
+    // Add thread start hook
+    code_function_callt thread_start_call;
+    thread_start_call.function() =
+      symbol_exprt("c:@F@__ESBMC_pthread_start_main_hook");
+    final_block.copy_to_operands(thread_start_call);
+
+    // Add intrinsic assignments
     final_block.copy_to_operands(intrinsic_block);
 
     // Add all accumulated imports
     if (!all_imports_block.operands().empty())
       final_block.copy_to_operands(all_imports_block);
 
+    // Add main Python code
     final_block.copy_to_operands(main_code);
+
+    // Add atexit handler
+    code_function_callt atexit_call;
+    atexit_call.function() = symbol_exprt("c:@F@__ESBMC_atexit_handler");
+    final_block.copy_to_operands(atexit_call);
+
+    // Add thread end hook
+    code_function_callt thread_end_call;
+    thread_end_call.function() =
+      symbol_exprt("c:@F@__ESBMC_pthread_end_main_hook");
+    final_block.copy_to_operands(thread_end_call);
 
     main_symbol.value.swap(final_block);
   }
@@ -5956,9 +6001,6 @@ void python_converter::convert()
     throw std::runtime_error(
       "The main function is already defined in another module");
   }
-
-  // Set config.main so that clang_c_main() can find and wrap this function
-  config.main = "python_main";
 }
 
 exprt python_converter::extract_type_from_boolean_op(const exprt &bool_op)
