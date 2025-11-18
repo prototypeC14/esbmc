@@ -5719,8 +5719,8 @@ void python_converter::convert()
   main_type.return_type() = empty_typet();
 
   symbolt main_symbol;
-  main_symbol.id = "__ESBMC_main";
-  main_symbol.name = "__ESBMC_main";
+  main_symbol.id = "python_main";
+  main_symbol.name = "python_main";
   main_symbol.type.swap(main_type);
   main_symbol.lvalue = true;
   main_symbol.is_extern = false;
@@ -5956,6 +5956,9 @@ void python_converter::convert()
     throw std::runtime_error(
       "The main function is already defined in another module");
   }
+
+  // Set config.main so that clang_c_main() can find and wrap this function
+  config.main = "python_main";
 }
 
 exprt python_converter::extract_type_from_boolean_op(const exprt &bool_op)
