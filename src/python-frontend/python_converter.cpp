@@ -5968,6 +5968,13 @@ void python_converter::convert()
       "The python_user_main function is already defined");
   }
 
+  // Get the moved symbol from symbol table for later use
+  const symbolt *user_main_sym = symbol_table_.find_symbol("python_user_main");
+  if (!user_main_sym)
+  {
+    throw std::runtime_error("python_user_main symbol not found after move");
+  }
+
   // Create __ESBMC_main that initializes and calls user code
   code_typet main_type;
   main_type.return_type() = empty_typet();
@@ -6000,7 +6007,7 @@ void python_converter::convert()
 
   // 3. Call python_user_main
   code_function_callt user_main_call;
-  user_main_call.function() = symbol_expr(user_main_symbol);
+  user_main_call.function() = symbol_expr(*user_main_sym);
   main_body.copy_to_operands(user_main_call);
 
   main_symbol.value.swap(main_body);
