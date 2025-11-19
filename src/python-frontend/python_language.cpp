@@ -3,7 +3,6 @@
 #include <python-frontend/python_annotation.h>
 #include <python-frontend/global_scope.h>
 #include <clang-cpp-frontend/clang_cpp_adjust.h>
-#include <clang-c-frontend/clang_c_main.h>
 #include <util/message.h>
 #include <util/filesystem.h>
 #include <util/c_expr2string.h>
@@ -145,10 +144,9 @@ bool python_languaget::parse(const std::string &path)
 
 bool python_languaget::final(contextt &context)
 {
-  clang_c_maint c_main(context);
-  if (c_main.clang_main())
-    return true;
-
+  // __ESBMC_main is already created in python_converter::convert()
+  // with proper static_lifetime_init and hooks, so no additional
+  // wrapping is needed
   return false;
 }
 

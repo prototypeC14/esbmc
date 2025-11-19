@@ -5719,8 +5719,8 @@ void python_converter::convert()
   main_type.return_type() = empty_typet();
 
   symbolt main_symbol;
-  main_symbol.id = "python_main";
-  main_symbol.name = "python_main";
+  main_symbol.id = "__ESBMC_main";
+  main_symbol.name = "__ESBMC_main";
   main_symbol.type.swap(main_type);
   main_symbol.lvalue = true;
   main_symbol.is_extern = false;
@@ -5869,9 +5869,42 @@ void python_converter::convert()
     convert_expression_to_code(call);
     convert_expression_to_code(block);
 
-    // Pack class definitions and function call
-    main_symbol.value.swap(block);
-    main_symbol.value.copy_to_operands(call);
+    // Build __ESBMC_main with proper initialization structure
+    code_blockt main_body;
+
+    // 1. Initialize static lifetime variables
+    symbol_table_.foreach_operand_in_order(
+      [&main_body](const symbolt &s) {
+        if (s.static_lifetime && !s.value.is_nil() && !s.type.is_code())
+        {
+          code_assignt assign(symbol_expr(s), s.value);
+          assign.location() = s.location;
+          main_body.copy_to_operands(assign);
+        }
+      });
+
+    // 2. Add thread start hook
+    code_function_callt thread_start_call;
+    thread_start_call.function() =
+      symbol_exprt("c:@F@__ESBMC_pthread_start_main_hook");
+    main_body.copy_to_operands(thread_start_call);
+
+    // 3. Add user code (class definitions and function call)
+    main_body.copy_to_operands(block);
+    main_body.copy_to_operands(call);
+
+    // 4. Add atexit handler
+    code_function_callt atexit_call;
+    atexit_call.function() = symbol_exprt("c:@F@__ESBMC_atexit_handler");
+    main_body.copy_to_operands(atexit_call);
+
+    // 5. Add thread end hook
+    code_function_callt thread_end_call;
+    thread_end_call.function() =
+      symbol_exprt("c:@F@__ESBMC_pthread_end_main_hook");
+    main_body.copy_to_operands(thread_end_call);
+
+    main_symbol.value.swap(main_body);
   }
   else
   {
@@ -5939,17 +5972,47 @@ void python_converter::convert()
     exprt main_block = get_block((*ast_json)["body"]);
     codet main_code = convert_expression_to_code(main_block);
 
-    // Pack all top-level code into python_main
-    code_blockt final_block;
-    final_block.copy_to_operands(intrinsic_block);
+    // Build __ESBMC_main with proper initialization structure
+    code_blockt main_body;
+
+    // 1. Initialize static lifetime variables
+    symbol_table_.foreach_operand_in_order(
+      [&main_body](const symbolt &s) {
+        if (s.static_lifetime && !s.value.is_nil() && !s.type.is_code())
+        {
+          code_assignt assign(symbol_expr(s), s.value);
+          assign.location() = s.location;
+          main_body.copy_to_operands(assign);
+        }
+      });
+
+    // 2. Add thread start hook
+    code_function_callt thread_start_call;
+    thread_start_call.function() =
+      symbol_exprt("c:@F@__ESBMC_pthread_start_main_hook");
+    main_body.copy_to_operands(thread_start_call);
+
+    // 3. Add intrinsics and user top-level code
+    main_body.copy_to_operands(intrinsic_block);
 
     // Add all accumulated imports
     if (!all_imports_block.operands().empty())
-      final_block.copy_to_operands(all_imports_block);
+      main_body.copy_to_operands(all_imports_block);
 
-    final_block.copy_to_operands(main_code);
+    main_body.copy_to_operands(main_code);
 
-    main_symbol.value.swap(final_block);
+    // 4. Add atexit handler
+    code_function_callt atexit_call;
+    atexit_call.function() = symbol_exprt("c:@F@__ESBMC_atexit_handler");
+    main_body.copy_to_operands(atexit_call);
+
+    // 5. Add thread end hook
+    code_function_callt thread_end_call;
+    thread_end_call.function() =
+      symbol_exprt("c:@F@__ESBMC_pthread_end_main_hook");
+    main_body.copy_to_operands(thread_end_call);
+
+    main_symbol.value.swap(main_body);
   }
 
   if (symbol_table_.move(main_symbol))
@@ -5957,9 +6020,6 @@ void python_converter::convert()
     throw std::runtime_error(
       "The main function is already defined in another module");
   }
-
-  // Set config.main so that clang_c_main() can find and wrap this function
-  config.main = "python_main";
 }
 
 exprt python_converter::extract_type_from_boolean_op(const exprt &bool_op)
