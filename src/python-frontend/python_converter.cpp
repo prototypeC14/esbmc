@@ -5721,6 +5721,9 @@ void python_converter::convert()
   // Create built-in symbols for main module (__name__ = "__main__")
   create_builtin_symbols();
 
+  // Block to accumulate model library code
+  code_blockt models_block;
+
   if (!config.options.get_bool_option("no-library"))
   {
     // Load operational models
@@ -5760,8 +5763,8 @@ void python_converter::convert()
 
       convert_expression_to_code(model_code);
 
-      // Add imported code to main symbol
-      main_symbol.value.swap(model_code);
+      // Accumulate model code
+      models_block.copy_to_operands(model_code);
       current_python_file = main_python_file;
     }
     is_loading_models = false;
@@ -5867,7 +5870,9 @@ void python_converter::convert()
     user_code_body.copy_to_operands(call);
     user_code.swap(user_code_body);
 
-    // No additional init code for --function mode
+    // Add models to init code (intrinsics are already in block)
+    if (!models_block.operands().empty())
+      init_code.copy_to_operands(models_block);
   }
   else
   {
@@ -5935,7 +5940,9 @@ void python_converter::convert()
     exprt main_block = get_block((*ast_json)["body"]);
     user_code = convert_expression_to_code(main_block);
 
-    // Prepare initialization code: intrinsics + imports
+    // Prepare initialization code: models + intrinsics + imports
+    if (!models_block.operands().empty())
+      init_code.copy_to_operands(models_block);
     init_code.copy_to_operands(intrinsic_block);
     if (!all_imports_block.operands().empty())
       init_code.copy_to_operands(all_imports_block);
