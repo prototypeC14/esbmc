@@ -5869,7 +5869,32 @@ void python_converter::convert()
     convert_expression_to_code(call);
     convert_expression_to_code(block);
 
-    // Build __ESBMC_main with proper initialization structure
+    // Create python_user_main function containing only user code
+    code_typet user_main_type;
+    user_main_type.return_type() = empty_typet();
+
+    symbolt user_main_symbol;
+    user_main_symbol.id = "python_user_main";
+    user_main_symbol.name = "python_user_main";
+    user_main_symbol.type = user_main_type;
+    user_main_symbol.lvalue = true;
+    user_main_symbol.is_extern = false;
+    user_main_symbol.file_local = false;
+    user_main_symbol.location = get_location_from_decl(*ast_json);
+
+    // Pack user code into python_user_main
+    code_blockt user_code_body;
+    user_code_body.copy_to_operands(block);
+    user_code_body.copy_to_operands(call);
+    user_main_symbol.value.swap(user_code_body);
+
+    if (symbol_table_.move(user_main_symbol))
+    {
+      throw std::runtime_error(
+        "The python_user_main function is already defined");
+    }
+
+    // Build __ESBMC_main that initializes and calls user code
     code_blockt main_body;
 
     // 1. Initialize static lifetime variables
@@ -5883,9 +5908,10 @@ void python_converter::convert()
         }
       });
 
-    // 2. Add user code (class definitions and function call)
-    main_body.copy_to_operands(block);
-    main_body.copy_to_operands(call);
+    // 2. Call python_user_main
+    code_function_callt user_main_call;
+    user_main_call.function() = symbol_expr(user_main_symbol);
+    main_body.copy_to_operands(user_main_call);
 
     main_symbol.value.swap(main_body);
   }
@@ -5955,7 +5981,29 @@ void python_converter::convert()
     exprt main_block = get_block((*ast_json)["body"]);
     codet main_code = convert_expression_to_code(main_block);
 
-    // Build __ESBMC_main with proper initialization structure
+    // Create python_user_main function containing only user top-level code
+    code_typet user_main_type;
+    user_main_type.return_type() = empty_typet();
+
+    symbolt user_main_symbol;
+    user_main_symbol.id = "python_user_main";
+    user_main_symbol.name = "python_user_main";
+    user_main_symbol.type = user_main_type;
+    user_main_symbol.lvalue = true;
+    user_main_symbol.is_extern = false;
+    user_main_symbol.file_local = false;
+    user_main_symbol.location = get_location_from_decl(*ast_json);
+
+    // Pack only user top-level code into python_user_main
+    user_main_symbol.value = main_code;
+
+    if (symbol_table_.move(user_main_symbol))
+    {
+      throw std::runtime_error(
+        "The python_user_main function is already defined");
+    }
+
+    // Build __ESBMC_main with initialization and library code
     code_blockt main_body;
 
     // 1. Initialize static lifetime variables
@@ -5969,14 +6017,17 @@ void python_converter::convert()
         }
       });
 
-    // 2. Add intrinsics and user top-level code
+    // 2. Add intrinsics (runtime initialization)
     main_body.copy_to_operands(intrinsic_block);
 
-    // Add all accumulated imports
+    // 3. Add all accumulated imports (library code)
     if (!all_imports_block.operands().empty())
       main_body.copy_to_operands(all_imports_block);
 
-    main_body.copy_to_operands(main_code);
+    // 4. Call python_user_main (user code is isolated here)
+    code_function_callt user_main_call;
+    user_main_call.function() = symbol_expr(user_main_symbol);
+    main_body.copy_to_operands(user_main_call);
 
     main_symbol.value.swap(main_body);
   }
