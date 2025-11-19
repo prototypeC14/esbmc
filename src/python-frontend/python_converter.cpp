@@ -5883,26 +5883,9 @@ void python_converter::convert()
         }
       });
 
-    // 2. Add thread start hook
-    code_function_callt thread_start_call;
-    thread_start_call.function() =
-      symbol_exprt("c:@F@__ESBMC_pthread_start_main_hook");
-    main_body.copy_to_operands(thread_start_call);
-
-    // 3. Add user code (class definitions and function call)
+    // 2. Add user code (class definitions and function call)
     main_body.copy_to_operands(block);
     main_body.copy_to_operands(call);
-
-    // 4. Add atexit handler
-    code_function_callt atexit_call;
-    atexit_call.function() = symbol_exprt("c:@F@__ESBMC_atexit_handler");
-    main_body.copy_to_operands(atexit_call);
-
-    // 5. Add thread end hook
-    code_function_callt thread_end_call;
-    thread_end_call.function() =
-      symbol_exprt("c:@F@__ESBMC_pthread_end_main_hook");
-    main_body.copy_to_operands(thread_end_call);
 
     main_symbol.value.swap(main_body);
   }
@@ -5986,13 +5969,7 @@ void python_converter::convert()
         }
       });
 
-    // 2. Add thread start hook
-    code_function_callt thread_start_call;
-    thread_start_call.function() =
-      symbol_exprt("c:@F@__ESBMC_pthread_start_main_hook");
-    main_body.copy_to_operands(thread_start_call);
-
-    // 3. Add intrinsics and user top-level code
+    // 2. Add intrinsics and user top-level code
     main_body.copy_to_operands(intrinsic_block);
 
     // Add all accumulated imports
@@ -6000,17 +5977,6 @@ void python_converter::convert()
       main_body.copy_to_operands(all_imports_block);
 
     main_body.copy_to_operands(main_code);
-
-    // 4. Add atexit handler
-    code_function_callt atexit_call;
-    atexit_call.function() = symbol_exprt("c:@F@__ESBMC_atexit_handler");
-    main_body.copy_to_operands(atexit_call);
-
-    // 5. Add thread end hook
-    code_function_callt thread_end_call;
-    thread_end_call.function() =
-      symbol_exprt("c:@F@__ESBMC_pthread_end_main_hook");
-    main_body.copy_to_operands(thread_end_call);
 
     main_symbol.value.swap(main_body);
   }
