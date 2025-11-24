@@ -145,9 +145,10 @@ bool python_languaget::parse(const std::string &path)
 
 bool python_languaget::final(contextt &context)
 {
-  // Let clang_c_main create __ESBMC_main that calls python_user_main
-  clang_c_maint c_main(context);
-  return c_main.clang_main();
+  // __ESBMC_main is already created in python_converter::convert()
+  // We don't use clang_c_main() because it requires pthread hooks
+  // that are not loaded in Python's filtered C library
+  return false;
 }
 
 bool python_languaget::typecheck(contextt &context, const std::string &)
