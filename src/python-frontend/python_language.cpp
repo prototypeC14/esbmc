@@ -144,10 +144,9 @@ bool python_languaget::parse(const std::string &path)
 
 bool python_languaget::final(contextt &context)
 {
-  // __ESBMC_main is already created in python_converter::convert()
-  // with proper static_lifetime_init and hooks, so no additional
-  // wrapping is needed
-  return false;
+  // Let clang_c_main create __ESBMC_main that calls python_user_main
+  clang_c_maint c_main(context);
+  return c_main.clang_main();
 }
 
 bool python_languaget::typecheck(contextt &context, const std::string &)
