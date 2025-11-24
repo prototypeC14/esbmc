@@ -230,8 +230,36 @@ exprt python_list::build_push_list_call(
   }
   else
   {
-    // For all other types, we must pass address of the value
-    element_arg = address_of_exprt(symbol_expr(*elem_info.elem_symbol));
+    // For bool types, cast to signed long int before taking address
+    // This ensures proper storage and retrieval
+    if (elem_info.elem_symbol->type == bool_type())
+    {
+      symbolt &bool_as_long = converter_.create_tmp_symbol(
+        op,
+        "$bool_as_long$",
+        signedbv_typet(config.ansi_c.long_int_width),
+        exprt());
+
+      typecast_exprt bool_cast(
+        symbol_expr(*elem_info.elem_symbol),
+        signedbv_typet(config.ansi_c.long_int_width));
+
+      code_declt bool_long_decl(symbol_expr(bool_as_long));
+      bool_long_decl.copy_to_operands(bool_cast);
+      bool_long_decl.location() = elem_info.location;
+      converter_.add_instruction(bool_long_decl);
+
+      element_arg = address_of_exprt(symbol_expr(bool_as_long));
+
+      // Update elem_size to match
+      elem_info.elem_size =
+        from_integer(BigInt(config.ansi_c.long_int_width / 8), size_type());
+    }
+    else
+    {
+      // For all other types, we must pass address of the value
+      element_arg = address_of_exprt(symbol_expr(*elem_info.elem_symbol));
+    }
   }
 
   push_func_call.arguments().push_back(element_arg); // element or &element
@@ -854,10 +882,39 @@ exprt python_list::handle_index_access(
         }
         catch (const std::out_of_range &)
         {
-          const locationt l = converter_.get_location_from_decl(list_value_);
-          throw std::runtime_error(
-            "List out of bounds at " + l.get_file().as_string() +
-            " line: " + l.get_line().as_string());
+          // Only throw compile-time error if this is a static list with known elements
+          // For constant indices on static lists, this is a definite out-of-bounds error
+          if (
+            (slice_node["_type"] == "Constant" ||
+             (slice_node["_type"] == "UnaryOp" &&
+              slice_node["operand"]["_type"] == "Constant")) &&
+            !list_node.is_null() && list_node.contains("value") &&
+            list_node["value"].contains("elts") &&
+            list_node["value"]["elts"].is_array())
+          {
+            const locationt l = converter_.get_location_from_decl(list_value_);
+            throw std::runtime_error(
+              "List out of bounds at " + l.get_file().as_string() +
+              " line: " + l.get_line().as_string());
+          }
+
+          // Try annotation fallback for dynamic lists or function parameters
+          const nlohmann::json list_value_node = json_utils::get_var_value(
+            list_value_["value"]["id"],
+            converter_.current_function_name(),
+            converter_.ast());
+
+          elem_type = get_elem_type_from_annotation(
+            list_value_node, converter_.get_type_handler());
+
+          // Only throw if annotation also fails
+          if (elem_type == typet())
+          {
+            const locationt l = converter_.get_location_from_decl(list_value_);
+            throw std::runtime_error(
+              "List out of bounds at " + l.get_file().as_string() +
+              " line: " + l.get_line().as_string());
+          }
         }
       }
     }
