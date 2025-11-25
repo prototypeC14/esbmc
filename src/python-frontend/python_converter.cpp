@@ -6318,6 +6318,28 @@ void python_converter::convert()
       init_code.copy_to_operands(all_imports_block);
   }
 
+  /*
+   * Create three-function architecture for coverage support (similar to Solidity):
+   *
+   * 1. python_init (optional, hidden from coverage)
+   *    - Contains models, intrinsics, and imports initialization
+   *    - Marked with __ESBMC_HIDE label to exclude from coverage statistics
+   *    - Only created if there is initialization code
+   *
+   * 2. python_user_main (always created, included in coverage)
+   *    - Contains only user code from the main module
+   *    - This is what gets analyzed for branch/decision/assertion coverage
+   *
+   * 3. __ESBMC_main (always created, entry point)
+   *    - Entry point for ESBMC verification
+   *    - Initializes static lifetime variables
+   *    - Calls python_init() if it exists
+   *    - Calls python_user_main()
+   *
+   * This architecture ensures that coverage analysis only counts user code,
+   * not initialization/library code, making Python behave consistently with C.
+   */
+
   // Create python_init function for initialization code (hidden from coverage)
   if (!init_code.operands().empty())
   {
@@ -6410,12 +6432,14 @@ void python_converter::convert()
 
   // 3. Call python_user_main
   const symbolt *user_main_sym = symbol_table_.find_symbol("python_user_main");
-  if (user_main_sym)
+  if (!user_main_sym)
   {
-    code_function_callt user_main_call;
-    user_main_call.function() = symbol_expr(*user_main_sym);
-    main_body.copy_to_operands(user_main_call);
+    throw std::runtime_error("python_user_main symbol not found after move");
   }
+
+  code_function_callt user_main_call;
+  user_main_call.function() = symbol_expr(*user_main_sym);
+  main_body.copy_to_operands(user_main_call);
 
   main_symbol.value.swap(main_body);
 
