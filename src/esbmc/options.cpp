@@ -205,7 +205,7 @@ const struct group_opt_templ all_cmd_options[] = {
     {"witness-programfile", boost::program_options::value<std::string>(), ""},
     {"generate-testcase",
      NULL,
-     "if a solution is found, generates a testcase in XML"},
+     "generate test case from counterexample (XML for C, pytest for Python)"},
     {"generate-html-report",
      NULL,
      "if a violation is found, generates a HTML report"},
