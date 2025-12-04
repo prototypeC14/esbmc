@@ -1,8 +1,8 @@
 """
 Manual verification of pytest generation logic.
-This demonstrates what the generated test will do.
+This demonstrates what the ESBMC-generated test will do.
 """
-from test_div_example import div1
+from example_div_bug import div1
 
 
 def test_div1_counterexample_manual():

@@ -1,13 +1,15 @@
 """
-This is an EXAMPLE of what ESBMC will generate.
+This is an EXAMPLE of what ESBMC will AUTO-GENERATE.
 
 To actually generate this file, you would run:
-  esbmc test_div_example.py --generate-testcase
+  esbmc example_div_bug.py --generate-testcase
+
+Then ESBMC will create: test_counterexample.py (like this file)
 
 This file shows the expected output format.
 """
 import pytest
-from test_div_example import div1
+from example_div_bug import div1
 
 
 def test_div1_counterexample():
