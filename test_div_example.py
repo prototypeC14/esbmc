@@ -5,7 +5,8 @@ def div1(cond: int, x: int) -> int:
     else:
         return x // 10
 
-# Test with specific values that trigger the bug
-cond = 0
-x = 0
-result = div1(cond, x)
+if __name__ == "__main__":
+    # Test with specific values that trigger the bug
+    cond = 0
+    x = 0
+    result = div1(cond, x)
