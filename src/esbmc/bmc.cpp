@@ -153,7 +153,13 @@ void bmct::error_trace(smt_convt &smt_conv, const symex_target_equationt &eq)
   if (witness_yaml_output != "")
     violation_yaml_goto_trace(options, ns, goto_trace);
 
-  if (options.get_bool_option("generate-testcase"))
+  // Handle --generate-python-testcase (explicit Python pytest generation)
+  if (options.get_bool_option("generate-python-testcase"))
+  {
+    generate_testcase_python("test_counterexample.py", eq, smt_conv, ns, goto_trace);
+  }
+  // Handle --generate-testcase (auto-detect format based on file type)
+  else if (options.get_bool_option("generate-testcase"))
   {
     // Check if input file is Python
     std::string input_file = options.get_option("input-file");
@@ -492,7 +498,16 @@ void bmct::report_multi_property_trace(
       show_goto_trace(out, ns, goto_trace);
     }
 
-    if (options.get_bool_option("generate-testcase"))
+    // Handle --generate-python-testcase (explicit Python pytest generation)
+    if (options.get_bool_option("generate-python-testcase"))
+    {
+      std::string pytest_filename =
+        "test_counterexample_" + std::to_string(ce_counter) + ".py";
+      generate_testcase_python(
+        pytest_filename, local_eq, *solver, ns, goto_trace);
+    }
+    // Handle --generate-testcase (auto-detect format based on file type)
+    else if (options.get_bool_option("generate-testcase"))
     {
       // Check if input file is Python
       std::string input_file = options.get_option("input-file");

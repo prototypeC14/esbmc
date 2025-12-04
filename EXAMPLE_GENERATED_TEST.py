@@ -2,6 +2,9 @@
 This is an EXAMPLE of what ESBMC will AUTO-GENERATE.
 
 To actually generate this file, you would run:
+  esbmc example_div_bug.py --generate-python-testcase
+
+Or use the auto-detect option:
   esbmc example_div_bug.py --generate-testcase
 
 Then ESBMC will create: test_counterexample.py (like this file)

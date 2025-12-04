@@ -21,6 +21,12 @@ result = div1(cond, x)
 
 ### 步骤 2: 运行ESBMC生成pytest测试
 
+**方法1: 使用专用Python选项（推荐）**
+```bash
+esbmc my_code.py --generate-python-testcase
+```
+
+**方法2: 使用通用选项（自动检测）**
 ```bash
 esbmc my_code.py --generate-testcase
 ```
@@ -110,29 +116,38 @@ pytest test_counterexample.py
 
 ## 命令行选项
 
-### 基础用法
+### 两种方式
+
+#### 方法1: `--generate-python-testcase` （推荐）
+专门用于Python的pytest生成，明确且简洁。
+
 ```bash
+# 基础用法
+esbmc example.py --generate-python-testcase
+
+# 多个counterexample
+esbmc example.py --multi-property --generate-python-testcase
+# 输出: test_counterexample_1.py, test_counterexample_2.py, ...
+
+# 结合覆盖率分析
+esbmc example.py --branch-coverage --generate-python-testcase
+```
+
+#### 方法2: `--generate-testcase` （通用）
+自动检测文件类型（`.py` → pytest，`.c` → XML）
+
+```bash
+# Python文件 → 生成pytest
 esbmc example.py --generate-testcase
+
+# C文件 → 生成XML
+esbmc example.c --generate-testcase
 ```
 
-### 多个counterexample（生成多个测试文件）
-```bash
-esbmc example.py --multi-property --generate-testcase
-
-# 输出:
-# test_counterexample_1.py
-# test_counterexample_2.py
-# test_counterexample_3.py
-```
-
-### 结合覆盖率分析
-```bash
-esbmc example.py --branch-coverage --generate-testcase
-
-# ESBMC会:
-# 1. 分析分支覆盖率
-# 2. 为未覆盖的分支生成测试用例
-```
+### 推荐用法
+- **Python项目**: 使用 `--generate-python-testcase`（更明确）
+- **混合项目**: 使用 `--generate-testcase`（自动检测）
+- **CI/CD**: 使用 `--generate-python-testcase`（避免歧义）
 
 ## 支持的Python bug类型
 
@@ -160,9 +175,10 @@ A: 当前目录下，文件名为：
 - 多个: `test_counterexample_1.py`, `test_counterexample_2.py`, ...
 
 ### Q: C语言还能用吗？
-A: 完全可以！`--generate-testcase` 会自动检测：
-- `.py` 文件 → 生成 pytest 测试
-- `.c` 文件 → 生成 XML 测试（Test-Comp格式）
+A: 完全可以！使用方式：
+- Python: `esbmc code.py --generate-python-testcase`
+- C: `esbmc code.c --generate-testcase`（生成XML）
+- 或者都用 `--generate-testcase`（自动检测文件类型）
 
 ### Q: 如何自定义测试？
 A: 编辑生成的 `test_counterexample.py`：
