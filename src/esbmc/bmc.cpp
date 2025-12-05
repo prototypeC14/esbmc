@@ -153,30 +153,17 @@ void bmct::error_trace(smt_convt &smt_conv, const symex_target_equationt &eq)
   if (witness_yaml_output != "")
     violation_yaml_goto_trace(options, ns, goto_trace);
 
-  // Handle --generate-python-testcase (explicit Python pytest generation)
+  // Handle --generate-python-testcase (Python pytest generation)
   if (options.get_bool_option("generate-python-testcase"))
   {
     generate_testcase_python("test_counterexample.py", eq, smt_conv, ns, goto_trace);
   }
-  // Handle --generate-testcase (auto-detect format based on file type)
-  else if (options.get_bool_option("generate-testcase"))
-  {
-    // Check if input file is Python
-    std::string input_file = options.get_option("input-file");
-    bool is_python = input_file.size() >= 3 &&
-                     input_file.substr(input_file.size() - 3) == ".py";
 
-    if (is_python)
-    {
-      // Generate pytest test file for Python
-      generate_testcase_python("test_counterexample.py", eq, smt_conv, ns, goto_trace);
-    }
-    else
-    {
-      // Generate XML test case for C (Test-Comp format)
-      generate_testcase_metadata();
-      generate_testcase("testcase.xml", eq, smt_conv);
-    }
+  // Handle --generate-testcase (C XML test generation)
+  if (options.get_bool_option("generate-testcase"))
+  {
+    generate_testcase_metadata();
+    generate_testcase("testcase.xml", eq, smt_conv);
   }
 
   if (options.get_bool_option("generate-html-report"))
