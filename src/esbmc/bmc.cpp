@@ -751,6 +751,9 @@ void report_coverage(
     else
       log_result("Branch Coverage: 0%");
   }
+
+  // Note: pytest test generation is currently not supported in coverage mode
+  // Use without --branch-coverage to generate pytest tests
 }
 
 // Output coverage information whenever an instrumented assertion is found violated.
