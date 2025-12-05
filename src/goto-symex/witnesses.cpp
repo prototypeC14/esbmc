@@ -1182,6 +1182,8 @@ void generate_pytest_testcase(
   smt_convt &smt_conv,
   const namespacet &ns)
 {
+  (void)ns; // Suppress unused parameter warning
+
   // Extract original Python file name
   std::string original_file = config.options.get_option("input-file");
 
@@ -1228,7 +1230,7 @@ void generate_pytest_testcase(
 
     std::string value_str;
     if (is_constant_int2t(concrete_value))
-      value_str = to_constant_int2t(concrete_value).value.to_long().to_string();
+      value_str = integer2string(to_constant_int2t(concrete_value).value);
     else if (is_constant_floatbv2t(concrete_value))
       value_str = to_constant_floatbv2t(concrete_value).value.to_ansi_c_string();
     else if (is_constant_bool2t(concrete_value))
@@ -1275,31 +1277,6 @@ void generate_pytest_testcase(
   // For now, assume there's one function being tested
   // TODO: Extract actual function name from the call stack
   std::string function_name = "test_function";
-
-  // Try to extract function name from SSA steps (look for function calls)
-  for (auto const &SSA_step : target.SSA_steps)
-  {
-    if (SSA_step.is_function_call())
-    {
-      // Extract function name from the call
-      std::string full_name = SSA_step.function_name.as_string();
-
-      // Skip internal functions
-      if (has_prefix(full_name, "python_") ||
-          has_prefix(full_name, "__ESBMC_") ||
-          has_prefix(full_name, "__VERIFIER_"))
-        continue;
-
-      // Remove namespace prefixes
-      size_t colon_pos = full_name.rfind("::");
-      if (colon_pos != std::string::npos)
-        function_name = full_name.substr(colon_pos + 2);
-      else
-        function_name = full_name;
-
-      break;
-    }
-  }
 
   // Store this test case
   test_data[function_name].push_back(current_params);
