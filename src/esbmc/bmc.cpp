@@ -161,7 +161,22 @@ void bmct::error_trace(smt_convt &smt_conv, const symex_target_equationt &eq)
 
   if (options.get_bool_option("generate-pytest-testcase"))
   {
-    generate_pytest_testcase("test_case.py", eq, smt_conv, ns);
+    // Generate pytest filename based on source file: test_<module>.py
+    std::string input_file = options.get_option("input-file");
+    std::string module_name = input_file;
+
+    // Remove .py extension
+    size_t dot_pos = module_name.rfind(".py");
+    if (dot_pos != std::string::npos)
+      module_name = module_name.substr(0, dot_pos);
+
+    // Remove directory path
+    size_t slash_pos = module_name.rfind("/");
+    if (slash_pos != std::string::npos)
+      module_name = module_name.substr(slash_pos + 1);
+
+    std::string pytest_filename = "test_" + module_name + ".py";
+    generate_pytest_testcase(pytest_filename, eq, smt_conv, ns);
   }
 
   if (options.get_bool_option("generate-html-report"))
@@ -489,11 +504,7 @@ void bmct::report_multi_property_trace(
       generate_testcase(
         "testcase-" + std::to_string(ce_counter) + ".xml", local_eq, *solver);
     }
-    if (options.get_bool_option("generate-pytest-testcase"))
-    {
-      generate_pytest_testcase(
-        "test_case_" + std::to_string(ce_counter) + ".py", local_eq, *solver, ns);
-    }
+    // Note: pytest generation is handled in the main BMC path, not here
     if (options.get_bool_option("generate-html-report"))
       generate_html_report(std::to_string(ce_counter), ns, goto_trace, options);
 
