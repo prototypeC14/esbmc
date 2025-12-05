@@ -237,3 +237,10 @@ void generate_testcase(
   const std::string &file_name,
   const symex_target_equationt &target,
   smt_convt &smt_conv);
+
+/// This generates pytest test-cases for Python programs
+void generate_pytest_testcase(
+  const std::string &file_name,
+  const symex_target_equationt &target,
+  smt_convt &smt_conv,
+  const namespacet &ns);

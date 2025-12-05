@@ -159,6 +159,11 @@ void bmct::error_trace(smt_convt &smt_conv, const symex_target_equationt &eq)
     generate_testcase("testcase.xml", eq, smt_conv);
   }
 
+  if (options.get_bool_option("generate-pytest-testcase"))
+  {
+    generate_pytest_testcase("test_case.py", eq, smt_conv, ns);
+  }
+
   if (options.get_bool_option("generate-html-report"))
     generate_html_report("1", ns, goto_trace, options);
 
@@ -483,6 +488,11 @@ void bmct::report_multi_property_trace(
       generate_testcase_metadata();
       generate_testcase(
         "testcase-" + std::to_string(ce_counter) + ".xml", local_eq, *solver);
+    }
+    if (options.get_bool_option("generate-pytest-testcase"))
+    {
+      generate_pytest_testcase(
+        "test_case_" + std::to_string(ce_counter) + ".py", local_eq, *solver, ns);
     }
     if (options.get_bool_option("generate-html-report"))
       generate_html_report(std::to_string(ce_counter), ns, goto_trace, options);
