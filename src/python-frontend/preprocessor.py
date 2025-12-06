@@ -454,6 +454,20 @@ class Preprocessor(ast.NodeTransformer):
                     len(target.elts) == 2)
 
         if is_unpacking:
+            # Check if elements are simple names (not nested tuples)
+            if not isinstance(target.elts[0], ast.Name):
+                raise ValueError(
+                    f"enumerate does not support nested unpacking for the index position. "
+                    f"Found {type(target.elts[0]).__name__} instead of a variable name. "
+                    f"Consider rewriting: for idx, item in enumerate(...) and then unpack item separately."
+                )
+            if not isinstance(target.elts[1], ast.Name):
+                raise ValueError(
+                    f"enumerate does not support nested unpacking for the value position. "
+                    f"Found {type(target.elts[1]).__name__} instead of a variable name. "
+                    f"Consider rewriting: for idx, item in enumerate(...) and then unpack item separately."
+                )
+
             return {
                 'type': 'unpacking',
                 'index_var': target.elts[0].id,

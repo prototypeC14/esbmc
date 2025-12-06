@@ -32,6 +32,16 @@ def is_unsupported_module(module_name):
     unsuported_modules = ["blah"]
     return module_name in unsuported_modules
 
+def should_skip_module(module_name):
+    """Check if module should be skipped during processing.
+
+    Modules are skipped if they contain complex Python patterns that
+    ESBMC's preprocessor doesn't support, or if they're not needed for
+    verification (like test frameworks).
+    """
+    skip_modules = ["pytest", "_pytest"]
+    return module_name in skip_modules
+
 
 def import_module_by_name(module_name, output_dir):
     if is_unsupported_module(module_name):
@@ -42,6 +52,10 @@ def import_module_by_name(module_name, output_dir):
 
     # Skip typing module - it's for type annotations only and doesn't need AST processing.
     if base_module == "typing":
+        return None
+
+    # Skip modules that cause preprocessing issues
+    if should_skip_module(base_module):
         return None
 
     if is_imported_model(base_module):
@@ -160,6 +174,11 @@ def process_imports(node, output_dir):
             imported_elements = node.names
         if module_name:
             import_aliases[module_name] = module_name
+
+    # Skip modules that should not be processed
+    base_module = module_name.split(".")[0]
+    if should_skip_module(base_module):
+        return
 
     # Track imports for this module
     if module_name not in module_imports:
@@ -320,6 +339,29 @@ def rewrite_relative_import(node, parent_module: str | None):
     node.level = 0
 
 
+def filter_skipped_module_imports(tree):
+    """Remove import statements for skipped modules from the AST.
+
+    This prevents the C++ backend from trying to open JSON files for
+    modules that were intentionally not processed.
+    """
+    filtered_body = []
+    for node in tree.body:
+        if isinstance(node, ast.Import):
+            remaining = [alias for alias in node.names
+                        if not should_skip_module(alias.name.split('.')[0])]
+            if remaining:
+                node.names = remaining
+                filtered_body.append(node)
+        elif isinstance(node, ast.ImportFrom):
+            if not node.module or not should_skip_module(node.module.split('.')[0]):
+                filtered_body.append(node)
+        else:
+            filtered_body.append(node)
+    tree.body = filtered_body
+    return tree
+
+
 def generate_ast_json(tree, python_filename, elements_to_import, output_dir, module_qualname=None):
     """
     Generate AST JSON from the given Python AST tree.
@@ -331,6 +373,8 @@ def generate_ast_json(tree, python_filename, elements_to_import, output_dir, mod
         - output_dir: The directory to save the generated JSON file.
     """
 
+    # Remove imports for modules that were skipped during processing
+    tree = filter_skipped_module_imports(tree)
 
 
     # Filter elements to be imported from the module
