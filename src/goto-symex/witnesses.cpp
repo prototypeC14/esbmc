@@ -1322,7 +1322,20 @@ void pytest_generator::collect(
     if (!extracted_func_name.empty() && function_name.empty())
       function_name = extracted_func_name;
 
-    test_cases.push_back(current_params);
+    // Only add test cases that match the expected parameter count
+    // This is important for condition-coverage mode where different branches
+    // may have different visible variables
+    if (current_params.size() == param_names.size())
+    {
+      test_cases.push_back(current_params);
+    }
+    else
+    {
+      log_warning(
+        "Skipping test case with {} parameters (expected {})",
+        current_params.size(),
+        param_names.size());
+    }
   }
 }
 
