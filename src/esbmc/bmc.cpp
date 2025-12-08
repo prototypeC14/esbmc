@@ -38,7 +38,6 @@
 #include <util/time_stopping.h>
 #include <util/cache.h>
 #include <atomic>
-#include <goto-symex/witnesses.h>
 
 std::unordered_set<std::string> goto_functionst::reached_claims;
 std::unordered_multiset<std::string> goto_functionst::reached_mul_claims;
