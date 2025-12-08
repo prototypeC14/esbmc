@@ -1349,7 +1349,8 @@ int esbmc_parseoptionst::do_bmc_strategy(
             report_coverage(
               options,
               goto_functions.reached_claims,
-              goto_functions.reached_mul_claims);
+              goto_functions.reached_mul_claims,
+              pytest_gen);
           return 0;
         }
       }
