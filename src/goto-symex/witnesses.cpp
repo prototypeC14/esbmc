@@ -1240,6 +1240,34 @@ std::string pytest_generator::extract_function_name(
   return "";  // No function name found
 }
 
+std::string pytest_generator::convert_float_to_python(const std::string &c_float) const
+{
+  // Convert C-style float representations to Python format
+  // C style: +NAN, -NAN, +INF, -INF, +INFINITY, -INFINITY
+  // Python: float('nan'), float('inf'), float('-inf')
+
+  std::string upper = c_float;
+  // Convert to uppercase for case-insensitive comparison
+  for (char &c : upper)
+    c = std::toupper(c);
+
+  // Check for NaN
+  if (upper.find("NAN") != std::string::npos)
+    return "float('nan')";
+
+  // Check for positive infinity
+  if (upper.find("+INF") != std::string::npos ||
+      (upper.find("INF") != std::string::npos && upper[0] != '-'))
+    return "float('inf')";
+
+  // Check for negative infinity
+  if (upper.find("-INF") != std::string::npos)
+    return "float('-inf')";
+
+  // Regular float - return as-is
+  return c_float;
+}
+
 void pytest_generator::clear()
 {
   std::lock_guard<std::mutex> lock(data_mutex);
@@ -1298,7 +1326,10 @@ void pytest_generator::collect(
       if (is_constant_int2t(concrete_value))
         value_str = integer2string(to_constant_int2t(concrete_value).value);
       else if (is_constant_floatbv2t(concrete_value))
-        value_str = to_constant_floatbv2t(concrete_value).value.to_ansi_c_string();
+      {
+        std::string c_float = to_constant_floatbv2t(concrete_value).value.to_ansi_c_string();
+        value_str = convert_float_to_python(c_float);
+      }
       else if (is_constant_bool2t(concrete_value))
         value_str = to_constant_bool2t(concrete_value).value ? "True" : "False";
       else
@@ -1535,7 +1566,10 @@ void pytest_generator::generate_single(
       if (is_constant_int2t(concrete_value))
         value_str = integer2string(to_constant_int2t(concrete_value).value);
       else if (is_constant_floatbv2t(concrete_value))
-        value_str = to_constant_floatbv2t(concrete_value).value.to_ansi_c_string();
+      {
+        std::string c_float = to_constant_floatbv2t(concrete_value).value.to_ansi_c_string();
+        value_str = convert_float_to_python(c_float);
+      }
       else if (is_constant_bool2t(concrete_value))
         value_str = to_constant_bool2t(concrete_value).value ? "True" : "False";
       else

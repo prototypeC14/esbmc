@@ -258,6 +258,9 @@ private:
     const symex_target_equationt &target,
     smt_convt &smt_conv) const;
 
+  /// Helper: Convert C-style float string to Python format
+  std::string convert_float_to_python(const std::string &c_float) const;
+
 public:
   pytest_generator() = default;
 
