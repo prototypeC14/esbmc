@@ -1316,26 +1316,44 @@ void pytest_generator::collect(
 
     // Initialize param names on first collection
     if (param_names.empty())
-      param_names = current_param_names;
-
-    // Store function name if we found one
-    if (!extracted_func_name.empty() && function_name.empty())
-      function_name = extracted_func_name;
-
-    // Only add test cases that match the expected parameter count
-    // This is important for condition-coverage mode where different branches
-    // may have different visible variables
-    if (current_params.size() == param_names.size())
     {
+      param_names = current_param_names;
       test_cases.push_back(current_params);
     }
     else
     {
-      log_warning(
-        "Skipping test case with {} parameters (expected {})",
-        current_params.size(),
-        param_names.size());
+      // Match parameters by name to handle condition-coverage mode where
+      // different branches may collect variables in different orders or subsets
+      std::vector<std::string> matched_params;
+      matched_params.resize(param_names.size());
+
+      // Build a map from parameter name to value
+      std::map<std::string, std::string> param_map;
+      for (size_t i = 0; i < current_param_names.size(); ++i)
+        param_map[current_param_names[i]] = current_params[i];
+
+      // Match against canonical parameter list
+      for (size_t i = 0; i < param_names.size(); ++i)
+      {
+        auto it = param_map.find(param_names[i]);
+        if (it != param_map.end())
+        {
+          matched_params[i] = it->second;
+        }
+        else
+        {
+          // Parameter not found in this counterexample - use default value
+          // This can happen in condition-coverage when a parameter isn't used in a branch
+          matched_params[i] = "0";
+        }
+      }
+
+      test_cases.push_back(matched_params);
     }
+
+    // Store function name if we found one
+    if (!extracted_func_name.empty() && function_name.empty())
+      function_name = extracted_func_name;
   }
 }
 
