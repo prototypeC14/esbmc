@@ -1268,6 +1268,43 @@ std::string pytest_generator::convert_float_to_python(const std::string &c_float
   return c_float;
 }
 
+std::string pytest_generator::escape_python_string(const std::string &str) const
+{
+  // Escape special characters for Python string literal
+  std::string escaped;
+  escaped.reserve(str.size() + 10); // Reserve extra space for escapes
+
+  for (char c : str)
+  {
+    switch (c)
+    {
+    case '\\':
+      escaped += "\\\\";
+      break;
+    case '\'':
+      escaped += "\\'";
+      break;
+    case '\"':
+      escaped += "\\\"";
+      break;
+    case '\n':
+      escaped += "\\n";
+      break;
+    case '\r':
+      escaped += "\\r";
+      break;
+    case '\t':
+      escaped += "\\t";
+      break;
+    default:
+      escaped += c;
+      break;
+    }
+  }
+
+  return "'" + escaped + "'";
+}
+
 void pytest_generator::clear()
 {
   std::lock_guard<std::mutex> lock(data_mutex);
@@ -1332,6 +1369,11 @@ void pytest_generator::collect(
       }
       else if (is_constant_bool2t(concrete_value))
         value_str = to_constant_bool2t(concrete_value).value ? "True" : "False";
+      else if (is_constant_string2t(concrete_value))
+      {
+        std::string str_val = to_constant_string2t(concrete_value).value.as_string();
+        value_str = escape_python_string(str_val);
+      }
       else
         continue; // Skip unsupported types
 
@@ -1572,6 +1614,11 @@ void pytest_generator::generate_single(
       }
       else if (is_constant_bool2t(concrete_value))
         value_str = to_constant_bool2t(concrete_value).value ? "True" : "False";
+      else if (is_constant_string2t(concrete_value))
+      {
+        std::string str_val = to_constant_string2t(concrete_value).value.as_string();
+        value_str = escape_python_string(str_val);
+      }
       else
         value_str = "None";  // Unsupported type
 

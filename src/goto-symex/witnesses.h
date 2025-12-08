@@ -261,6 +261,9 @@ private:
   /// Helper: Convert C-style float string to Python format
   std::string convert_float_to_python(const std::string &c_float) const;
 
+  /// Helper: Escape string for Python literal
+  std::string escape_python_string(const std::string &str) const;
+
 public:
   pytest_generator() = default;
 
