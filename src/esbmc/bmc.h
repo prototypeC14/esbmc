@@ -46,6 +46,7 @@ protected:
   std::unique_ptr<smt_convt> runtime_solver;
   std::unique_ptr<reachability_treet> symex;
   pytest_generator pytest_gen;  // For Python pytest test case generation
+  ctest_generator ctest_gen;    // For C CTest test case generation
   mutable std::atomic<bool> keep_alive_running;
   mutable std::atomic<int> keep_alive_interval;
 
@@ -135,6 +136,7 @@ void report_coverage(
   const optionst &options,
   std::unordered_set<std::string> &reached_claims,
   const std::unordered_multiset<std::string> &reached_mul_claims,
-  pytest_generator &pytest_gen);
+  pytest_generator &pytest_gen,
+  ctest_generator &ctest_gen);
 
 #endif
