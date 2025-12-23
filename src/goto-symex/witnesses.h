@@ -237,3 +237,43 @@ void generate_testcase(
   const std::string &file_name,
   const symex_target_equationt &target,
   smt_convt &smt_conv);
+
+/// This generates pytest test-cases for Python programs
+class pytest_generator
+{
+private:
+  std::vector<std::vector<std::string>> test_cases;
+  std::vector<std::string> param_names;
+  std::string function_name;
+  mutable std::mutex data_mutex;
+
+  /// Helper: Clean up ESBMC internal variable names
+  std::string clean_variable_name(const std::string &name) const;
+
+  /// Helper: Extract function name from SSA steps
+  std::string extract_function_name(
+    const symex_target_equationt &target,
+    smt_convt &smt_conv) const;
+
+public:
+  pytest_generator() = default;
+
+  /// Clear collected data (called at start of coverage run)
+  void clear();
+
+  /// Collect test data from a counterexample (called for each CEX in coverage mode)
+  void collect(const symex_target_equationt &target, smt_convt &smt_conv);
+
+  /// Generate pytest file from collected data (called at end of coverage mode)
+  void generate(const std::string &file_name) const;
+
+  /// Single-shot generation for non-coverage mode
+  void generate_single(
+    const std::string &file_name,
+    const symex_target_equationt &target,
+    smt_convt &smt_conv,
+    const namespacet &ns);
+
+  /// Check if any test cases have been collected
+  bool has_tests() const;
+};
