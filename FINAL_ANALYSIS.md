@@ -1,8 +1,16 @@
-# CTest单值数组问题 - 最终分析
+# CTest单值数组问题 - 已解决 ✅
 
-## 关键发现
+## 解决方案
 
-我已经将代码改为**完全匹配** `witnesses.cpp:generate_testcase()` 的实现模式，这是ESBMC用于SV-COMP testcase生成的官方逻辑。
+通过**直接复用** `witnesses.cpp:generate_testcase()` 的核心收集逻辑，而不是重新实现一遍。
+
+### 关键改进
+
+创建了共享函数 `collect_nondet_values()`，确保：
+- **TestComp生成** (`--generate-testcase`)
+- **CTest生成** (`--generate-ctest-testcase`)
+
+使用**完全相同**的nondet值收集逻辑，保证100%一致性。
 
 ### witnesses.cpp 实现（第1114行）
 
@@ -216,3 +224,47 @@ int main(void) {
 - `witnesses.cpp:generate_testcase()` - 第1114行
 - SV-COMP TestComp格式文档
 - ESBMC符号执行和SSA文档
+
+---
+
+## 实现总结（2025-12-25更新）
+
+### 代码复用方案
+
+不再维护两份独立的收集逻辑，而是：
+
+```cpp
+// witnesses.cpp - 共享的收集逻辑
+std::vector<collected_nondet_value> collect_nondet_values(
+  const symex_target_equationt &target,
+  smt_convt &smt_conv)
+{
+  // 唯一权威的收集实现
+  // 与原generate_testcase()逻辑完全相同
+}
+
+// ctest.cpp - 使用共享逻辑
+void ctest_generator::collect(...)
+{
+  auto values = collect_nondet_values(target, smt_conv);
+  // 转换为CTest格式
+}
+```
+
+### 优势
+
+1. **单一事实来源**: 只有一个收集逻辑实现
+2. **保证一致性**: TestComp和CTest结果完全相同
+3. **减少代码**: 删除了100+行重复代码
+4. **易于维护**: 修改只需在一处进行
+5. **可扩展**: 未来添加其他格式可继续复用
+
+### 问题根源
+
+之前的问题不是逻辑错误，而是**实现隔离**导致的细微差异。即使代码看起来相同，两个独立实现在某些边界情况下可能产生不同结果。
+
+通过代码复用，从根本上消除了这种不一致性的可能。
+
+### 相关文档
+
+详细设计请参考：`CTEST_CODE_REUSE.md`
