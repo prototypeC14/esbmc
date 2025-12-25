@@ -6,6 +6,8 @@
 #include <irep2/irep2.h>
 #include <langapi/language_util.h>
 #include <goto-symex/goto_trace.h>
+#include <goto-symex/pytest.h>
+#include <goto-symex/ctest.h>
 #include <string>
 #include <regex>
 #include <big-int/bigint.hh>
@@ -241,48 +243,18 @@ void generate_testcase(
   const symex_target_equationt &target,
   smt_convt &smt_conv);
 
-/// This generates pytest test-cases for Python programs
-class pytest_generator
+/// Helper structure for collected nondet values
+struct collected_nondet_value
 {
-private:
-  std::vector<std::vector<std::string>> test_cases;
-  std::vector<std::string> param_names;
-  std::string function_name;
-  mutable std::mutex data_mutex;
-
-  /// Helper: Clean up ESBMC internal variable names
-  std::string clean_variable_name(const std::string &name) const;
-
-  /// Helper: Extract function name from SSA steps
-  std::string extract_function_name(
-    const symex_target_equationt &target,
-    smt_convt &smt_conv) const;
-
-public:
-  pytest_generator() = default;
-
-  /// Clear collected data (called at start of coverage run)
-  void clear();
-
-  /// Collect test data from a counterexample (called for each CEX in coverage mode)
-  void collect(const symex_target_equationt &target, smt_convt &smt_conv);
-
-  /// Generate pytest file from collected data (called at end of coverage mode)
-  void generate(const std::string &file_name) const;
-
-  /// Single-shot generation for non-coverage mode
-  void generate_single(
-    const std::string &file_name,
-    const symex_target_equationt &target,
-    smt_convt &smt_conv,
-    const namespacet &ns);
-
-  /// Check if any test cases have been collected
-  bool has_tests() const;
-
-  // Static helper methods
-  static std::string extract_module_name(const std::string &input_file);
-  static std::string generate_pytest_filename(const std::string &module_name);
+  std::string symbol_name;  // e.g., "nondet$symex::nondet3"
+  expr2tc value_expr;       // The concrete value expression
+  type2tc type;             // The type
 };
+
+/// Collect all nondet values from SSA (shared logic for both TestComp and CTest)
+/// This is the AUTHORITATIVE collection logic - reuses generate_testcase pattern
+std::vector<collected_nondet_value> collect_nondet_values(
+  const symex_target_equationt &target,
+  smt_convt &smt_conv);
 
 #endif

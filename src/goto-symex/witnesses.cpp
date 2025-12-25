@@ -1111,6 +1111,60 @@ void generate_testcase_metadata()
 #include <util/prefix.h>
 #include <boost/property_tree/detail/xml_parser_writer_settings.hpp>
 #include <goto-symex/slice.h>
+
+// ============================================================================
+// Shared nondet collection logic (used by both TestComp and CTest)
+// ============================================================================
+
+std::vector<collected_nondet_value> collect_nondet_values(
+  const symex_target_equationt &target,
+  smt_convt &smt_conv)
+{
+  std::vector<collected_nondet_value> results;
+  std::unordered_set<std::string> seen_nondets;
+
+  // Use the EXACT same logic as generate_testcase
+  for (auto const &SSA_step : target.SSA_steps)
+  {
+    if (!smt_conv.l_get(SSA_step.guard_ast).is_true())
+      continue;
+
+    if (SSA_step.is_assignment())
+    {
+      auto nondet_expr = symex_slicet::get_nondet_symbol(SSA_step.rhs);
+      if (!nondet_expr || !is_symbol2t(nondet_expr))
+        continue;
+
+      const symbol2t &sym = to_symbol2t(nondet_expr);
+      if (!has_prefix(sym.thename.as_string(), "nondet$"))
+        continue;
+
+      // Deduplicate by symbol name (same as generate_testcase)
+      if (seen_nondets.count(sym.thename.as_string()))
+        continue;
+
+      seen_nondets.insert(sym.thename.as_string());
+
+      // Get concrete value
+      auto concrete_value = smt_conv.get(nondet_expr);
+
+      // Store the collected value
+      collected_nondet_value val;
+      val.symbol_name = sym.thename.as_string();
+      val.value_expr = concrete_value;
+      val.type = concrete_value->type;
+
+      results.push_back(val);
+    }
+  }
+
+  return results;
+}
+
+// ============================================================================
+// TestComp XML generation (now uses shared collection logic)
+// ============================================================================
+
 void generate_testcase(
   const std::string &file_name,
   const symex_target_equationt &target,
@@ -1174,417 +1228,4 @@ void generate_testcase(
   }
   test_case << "</testcase>";
   test_case.close();
-}
-
-// ============================================================================
-// pytest_generator class implementation
-// ============================================================================
-
-std::string pytest_generator::clean_variable_name(const std::string &name) const
-{
-  std::string var_name = name;
-
-  // Remove everything before the last '@' (Python mangling)
-  size_t at_pos = var_name.rfind('@');
-  if (at_pos != std::string::npos)
-    var_name = var_name.substr(at_pos + 1);
-
-  // Remove everything after '!' (SSA suffix)
-  size_t exclaim_pos = var_name.find('!');
-  if (exclaim_pos != std::string::npos)
-    var_name = var_name.substr(0, exclaim_pos);
-
-  // Remove everything after '?' (other suffix)
-  size_t question_pos = var_name.find('?');
-  if (question_pos != std::string::npos)
-    var_name = var_name.substr(0, question_pos);
-
-  // Remove "c::main::" prefix if present
-  if (has_prefix(var_name, "c::main::"))
-    var_name = var_name.substr(9);
-
-  return var_name;
-}
-
-std::string pytest_generator::extract_function_name(
-  const symex_target_equationt &target,
-  smt_convt &smt_conv) const
-{
-  // Try to extract function name from SSA steps
-  for (auto const &SSA_step : target.SSA_steps)
-  {
-    if (!smt_conv.l_get(SSA_step.guard_ast).is_true())
-      continue;
-
-    if (SSA_step.source.pc->location.function() != "")
-    {
-      std::string full_func = SSA_step.source.pc->location.function().as_string();
-
-      // Skip internal functions
-      if (!has_prefix(full_func, "python_") &&
-          !has_prefix(full_func, "__ESBMC_") &&
-          !has_prefix(full_func, "__VERIFIER_") &&
-          full_func != "c::__ESBMC_main" &&
-          full_func != "c::python_user_main" &&
-          full_func != "c::python_init")
-      {
-        // Clean up function name (remove "c::" prefix if present)
-        if (has_prefix(full_func, "c::"))
-          return full_func.substr(3);
-        else
-          return full_func;
-      }
-    }
-  }
-
-  return "";  // No function name found
-}
-
-void pytest_generator::clear()
-{
-  std::lock_guard<std::mutex> lock(data_mutex);
-  test_cases.clear();
-  param_names.clear();
-  function_name.clear();
-}
-
-void pytest_generator::collect(
-  const symex_target_equationt &target,
-  smt_convt &smt_conv)
-{
-  std::vector<std::string> current_params;
-  std::vector<std::string> current_param_names;
-  std::unordered_set<std::string> seen_nondets;
-
-  // Extract function name if not already set
-  std::string extracted_func_name;
-  if (function_name.empty())
-    extracted_func_name = extract_function_name(target, smt_conv);
-
-  // Extract nondet values from counterexample
-  for (auto const &SSA_step : target.SSA_steps)
-  {
-    if (!smt_conv.l_get(SSA_step.guard_ast).is_true())
-      continue;
-
-    if (SSA_step.is_assignment())
-    {
-      // Extract variable name
-      std::string var_name;
-      if (is_symbol2t(SSA_step.lhs))
-      {
-        const symbol2t &lhs_sym = to_symbol2t(SSA_step.lhs);
-        var_name = clean_variable_name(lhs_sym.get_symbol_name());
-      }
-
-      // Check if this is a nondet assignment
-      auto nondet_expr = symex_slicet::get_nondet_symbol(SSA_step.rhs);
-      if (!nondet_expr || !is_symbol2t(nondet_expr))
-        continue;
-
-      const symbol2t &sym = to_symbol2t(nondet_expr);
-      if (!has_prefix(sym.thename.as_string(), "nondet$"))
-        continue;
-
-      if (seen_nondets.count(sym.thename.as_string()))
-        continue;
-
-      seen_nondets.insert(sym.thename.as_string());
-
-      // Get concrete value
-      auto concrete_value = smt_conv.get(nondet_expr);
-      std::string value_str;
-
-      if (is_constant_int2t(concrete_value))
-        value_str = integer2string(to_constant_int2t(concrete_value).value);
-      else if (is_constant_floatbv2t(concrete_value))
-        value_str = to_constant_floatbv2t(concrete_value).value.to_ansi_c_string();
-      else if (is_constant_bool2t(concrete_value))
-        value_str = to_constant_bool2t(concrete_value).value ? "True" : "False";
-      else
-        continue; // Skip unsupported types
-
-      current_params.push_back(value_str);
-      current_param_names.push_back(var_name);
-    }
-  }
-
-  // Store collected data if we found any nondet values
-  if (!current_params.empty())
-  {
-    std::lock_guard<std::mutex> lock(data_mutex);
-
-    // Initialize param names on first collection
-    if (param_names.empty())
-      param_names = current_param_names;
-
-    // Store function name if we found one
-    if (!extracted_func_name.empty() && function_name.empty())
-      function_name = extracted_func_name;
-
-    test_cases.push_back(current_params);
-  }
-}
-
-void pytest_generator::generate(const std::string &file_name) const
-{
-  std::lock_guard<std::mutex> lock(data_mutex);
-
-  if (test_cases.empty())
-  {
-    log_warning("No test cases collected. No pytest file generated.");
-    return;
-  }
-
-  // Extract module name from input file
-  std::string input_file = config.options.get_option("input-file");
-  std::string module_name = input_file;
-
-  size_t dot_pos = module_name.rfind(".py");
-  if (dot_pos != std::string::npos)
-    module_name = module_name.substr(0, dot_pos);
-
-  size_t slash_pos = module_name.rfind("/");
-  if (slash_pos != std::string::npos)
-    module_name = module_name.substr(slash_pos + 1);
-
-  // Generate pytest file
-  std::ofstream pytest_file(file_name);
-
-  // Header
-  pytest_file << "# Auto-generated by ESBMC " << ESBMC_VERSION << "\n";
-  pytest_file << "# Original file: " << input_file << "\n";
-  pytest_file << "# Generated: " << boost::posix_time::to_simple_string(
-    boost::posix_time::microsec_clock::universal_time()) << "\n\n";
-
-  // Import statements
-  pytest_file << "from " << module_name << " import *\n";
-  pytest_file << "import pytest\n\n";
-
-  // Build parameter list
-  std::string param_list;
-  for (size_t i = 0; i < param_names.size(); ++i)
-  {
-    if (i > 0)
-      param_list += ",";
-    param_list += param_names[i];
-  }
-
-  // Generate @pytest.mark.parametrize
-  pytest_file << "@pytest.mark.parametrize(\"" << param_list << "\", [\n";
-
-  bool single_param = (param_names.size() == 1);
-
-  for (const auto &test_case : test_cases)
-  {
-    if (single_param)
-    {
-      pytest_file << "    " << test_case[0] << ",\n";
-    }
-    else
-    {
-      pytest_file << "    (";
-      for (size_t i = 0; i < test_case.size(); ++i)
-      {
-        if (i > 0)
-          pytest_file << ", ";
-        pytest_file << test_case[i];
-      }
-      pytest_file << "),\n";
-    }
-  }
-
-  pytest_file << "])\n";
-
-  // Generate test function
-  std::string test_func_name = function_name.empty() ? "coverage" : function_name;
-
-  pytest_file << "def test_" << test_func_name << "(" << param_list << "):\n";
-  pytest_file << "    \"\"\"Auto-generated test cases for " << test_func_name << "\"\"\"\n";
-
-  if (!function_name.empty())
-  {
-    // Generate actual function call
-    pytest_file << "    " << function_name << "(";
-    for (size_t i = 0; i < param_names.size(); ++i)
-    {
-      if (i > 0)
-        pytest_file << ", ";
-      pytest_file << param_names[i];
-    }
-    pytest_file << ")\n\n";
-  }
-  else
-  {
-    // Fallback if we couldn't determine the function name
-    pytest_file << "    # Could not determine function name\n";
-    pytest_file << "    pass\n\n";
-  }
-
-  pytest_file.close();
-  log_status("Generated pytest test case with {} test(s): {}",
-    test_cases.size(), file_name);
-}
-
-bool pytest_generator::has_tests() const
-{
-  std::lock_guard<std::mutex> lock(data_mutex);
-  return !test_cases.empty();
-}
-
-void pytest_generator::generate_single(
-  const std::string &file_name,
-  const symex_target_equationt &target,
-  smt_convt &smt_conv,
-  const namespacet &ns)
-{
-  (void)ns; // Suppress unused parameter warning
-
-  // Extract original Python file name
-  std::string original_file = config.options.get_option("input-file");
-
-  // Extract module name (remove .py extension)
-  std::string module_name = original_file;
-  size_t dot_pos = module_name.rfind(".py");
-  if (dot_pos != std::string::npos)
-    module_name = module_name.substr(0, dot_pos);
-
-  // Remove directory path if present
-  size_t slash_pos = module_name.rfind("/");
-  if (slash_pos != std::string::npos)
-    module_name = module_name.substr(slash_pos + 1);
-
-  // Track nondet symbols we've seen to avoid duplicates
-  std::unordered_set<std::string> seen_nondets;
-
-  // Current test case parameters (in order)
-  std::vector<std::string> current_params;
-  std::vector<std::string> current_param_names;
-
-  // Extract function name
-  std::string func_name = extract_function_name(target, smt_conv);
-  if (func_name.empty())
-    func_name = "test_function";  // Fallback
-
-  // Traverse SSA steps to extract nondet variables
-  for (auto const &SSA_step : target.SSA_steps)
-  {
-    if (!smt_conv.l_get(SSA_step.guard_ast).is_true())
-      continue;
-
-    if (SSA_step.is_assignment())
-    {
-      // Extract the variable name from lhs
-      std::string var_name;
-      if (is_symbol2t(SSA_step.lhs))
-      {
-        const symbol2t &lhs_sym = to_symbol2t(SSA_step.lhs);
-        var_name = clean_variable_name(lhs_sym.get_symbol_name());
-      }
-
-      // Check if this is a nondet assignment
-      auto nondet_expr = symex_slicet::get_nondet_symbol(SSA_step.rhs);
-      if (!nondet_expr || !is_symbol2t(nondet_expr))
-        continue;
-
-      const symbol2t &sym = to_symbol2t(nondet_expr);
-      if (!has_prefix(sym.thename.as_string(), "nondet$"))
-        continue;
-
-      // Skip if we've already processed this nondet symbol
-      if (seen_nondets.count(sym.thename.as_string()))
-        continue;
-
-      seen_nondets.insert(sym.thename.as_string());
-
-      // Get the concrete value from the solver
-      auto concrete_value = smt_conv.get(nondet_expr);
-
-      std::string value_str;
-      if (is_constant_int2t(concrete_value))
-        value_str = integer2string(to_constant_int2t(concrete_value).value);
-      else if (is_constant_floatbv2t(concrete_value))
-        value_str = to_constant_floatbv2t(concrete_value).value.to_ansi_c_string();
-      else if (is_constant_bool2t(concrete_value))
-        value_str = to_constant_bool2t(concrete_value).value ? "True" : "False";
-      else
-        value_str = "None";  // Unsupported type
-
-      current_params.push_back(value_str);
-      current_param_names.push_back(var_name);
-    }
-  }
-
-  // If no nondets found, nothing to generate
-  if (current_params.empty())
-  {
-    log_warning("No nondet variables found. No pytest test case generated.");
-    return;
-  }
-
-  // Generate pytest file
-  std::ofstream pytest_file(file_name);
-
-  // Header
-  pytest_file << "# Auto-generated by ESBMC " << ESBMC_VERSION << "\n";
-  pytest_file << "# Original file: " << original_file << "\n";
-  pytest_file << "# Generated: " << boost::posix_time::to_simple_string(
-    boost::posix_time::microsec_clock::universal_time()) << "\n\n";
-
-  // Import statements
-  pytest_file << "from " << module_name << " import *\n";
-  pytest_file << "import pytest\n\n";
-
-  // Build parameter list string
-  std::string param_list;
-  for (size_t i = 0; i < current_param_names.size(); ++i)
-  {
-    if (i > 0)
-      param_list += ",";
-    param_list += current_param_names[i];
-  }
-
-  // Generate @pytest.mark.parametrize
-  pytest_file << "@pytest.mark.parametrize(\"" << param_list << "\", [\n";
-
-  // Single parameter: no tuple wrapper needed
-  // Multiple parameters: use tuple wrapper
-  bool single_param = (current_param_names.size() == 1);
-
-  if (single_param)
-  {
-    // Single parameter: "5," not "(5,)"
-    pytest_file << "    " << current_params[0] << ",\n";
-  }
-  else
-  {
-    // Multiple parameters: "(5, 3),"
-    pytest_file << "    (";
-    for (size_t i = 0; i < current_params.size(); ++i)
-    {
-      if (i > 0)
-        pytest_file << ", ";
-      pytest_file << current_params[i];
-    }
-    pytest_file << "),\n";
-  }
-
-  pytest_file << "])\n";
-
-  // Generate test function
-  pytest_file << "def test_" << func_name << "(" << param_list << "):\n";
-  pytest_file << "    \"\"\"Auto-generated test cases for " << func_name << "()\"\"\"\n";
-  pytest_file << "    " << func_name << "(";
-
-  for (size_t i = 0; i < current_param_names.size(); ++i)
-  {
-    if (i > 0)
-      pytest_file << ", ";
-    pytest_file << current_param_names[i];
-  }
-
-  pytest_file << ")\n\n";
-
-  pytest_file.close();
-  log_status("Generated pytest test case: {}", file_name);
 }

@@ -1354,7 +1354,8 @@ int esbmc_parseoptionst::do_bmc_strategy(
               options,
               goto_functions.reached_claims,
               goto_functions.reached_mul_claims,
-              pytest_gen);
+              pytest_gen,
+              ctest_gen);
           return 0;
         }
       }
