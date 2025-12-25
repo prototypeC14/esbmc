@@ -6,6 +6,7 @@
 #include <goto-symex/reachability_tree.h>
 #include <goto-symex/symex_target_equation.h>
 #include <goto-symex/witnesses.h>
+#include <goto-symex/pytest.h>
 #include <goto-symex/ctest.h>
 #include <langapi/language_ui.h>
 #include <list>
@@ -124,6 +125,7 @@ private:
     std::atomic<size_t> total_properties = 0;
     std::atomic<size_t> passed_properties = 0;
     std::atomic<size_t> skipped_properties = 0;
+    std::atomic<size_t> simplified_properties = 0;
     std::atomic<size_t> failed_properties = 0;
     std::atomic<double> total_time_s = 0.0;
     std::string solver_name;

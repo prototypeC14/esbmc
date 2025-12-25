@@ -38,7 +38,6 @@
 #include <util/time_stopping.h>
 #include <util/cache.h>
 #include <atomic>
-#include <goto-symex/witnesses.h>
 
 std::unordered_set<std::string> goto_functionst::reached_claims;
 std::unordered_multiset<std::string> goto_functionst::reached_mul_claims;
@@ -150,8 +149,11 @@ void bmct::error_trace(smt_convt &smt_conv, const symex_target_equationt &eq)
   if (witness_graphml_output != "")
     violation_graphml_goto_trace(options, ns, goto_trace);
 
+    // Disable the violation witness in YAML format
+#if 0
   if (witness_yaml_output != "")
     violation_yaml_goto_trace(options, ns, goto_trace);
+#endif
 
   if (options.get_bool_option("generate-testcase"))
   {
@@ -163,19 +165,9 @@ void bmct::error_trace(smt_convt &smt_conv, const symex_target_equationt &eq)
   {
     // Generate pytest filename based on source file: test_<module>.py
     std::string input_file = options.get_option("input-file");
-    std::string module_name = input_file;
-
-    // Remove .py extension
-    size_t dot_pos = module_name.rfind(".py");
-    if (dot_pos != std::string::npos)
-      module_name = module_name.substr(0, dot_pos);
-
-    // Remove directory path
-    size_t slash_pos = module_name.rfind("/");
-    if (slash_pos != std::string::npos)
-      module_name = module_name.substr(slash_pos + 1);
-
-    std::string pytest_filename = "test_" + module_name + ".py";
+    std::string module_name = pytest_generator::extract_module_name(input_file);
+    std::string pytest_filename =
+      pytest_generator::generate_pytest_filename(module_name);
     pytest_gen.generate_single(pytest_filename, eq, smt_conv, ns);
   }
 
@@ -509,7 +501,6 @@ void bmct::report_multi_property_trace(
       generate_testcase(
         "testcase-" + std::to_string(ce_counter) + ".xml", local_eq, *solver);
     }
-    // Note: pytest generation is handled in the main BMC path, not here
     if (options.get_bool_option("generate-html-report"))
       generate_html_report(std::to_string(ce_counter), ns, goto_trace, options);
 
@@ -763,19 +754,9 @@ void report_coverage(
   if (options.get_bool_option("generate-pytest-testcase"))
   {
     std::string input_file = options.get_option("input-file");
-    std::string module_name = input_file;
-
-    // Remove .py extension
-    size_t dot_pos = module_name.rfind(".py");
-    if (dot_pos != std::string::npos)
-      module_name = module_name.substr(0, dot_pos);
-
-    // Remove directory path
-    size_t slash_pos = module_name.rfind("/");
-    if (slash_pos != std::string::npos)
-      module_name = module_name.substr(slash_pos + 1);
-
-    std::string pytest_filename = "test_" + module_name + ".py";
+    std::string module_name = pytest_generator::extract_module_name(input_file);
+    std::string pytest_filename =
+      pytest_generator::generate_pytest_filename(module_name);
     pytest_gen.generate(pytest_filename);
   }
 
@@ -1211,7 +1192,8 @@ smt_convt::resultt bmct::run_thread(std::shared_ptr<symex_target_equationt> &eq)
       return smt_convt::P_SMTLIB;
 
     log_status(
-      "Generated {} VCC(s), {} remaining after simplification ({} assignments)",
+      "Generated {} VCC(s), {} remaining after simplification ({} "
+      "assignments)",
       solver_result.total_claims,
       remaining_asserts,
       BigInt(eq->SSA_steps.size()) - ignored);
@@ -1373,7 +1355,10 @@ smt_convt::resultt bmct::multi_property_check(
 
   // Add summary tracking
   SimpleSummary summary;
-  summary.total_properties = remaining_claims;
+  summary.simplified_properties = symex->get_cur_state().simplified_claims;
+  summary.total_properties = remaining_claims + summary.simplified_properties;
+  summary.passed_properties =
+    summary.passed_properties + summary.simplified_properties;
 
   // For coverage info
   auto &reached_claims = symex->goto_functions.reached_claims;

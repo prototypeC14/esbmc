@@ -1,3 +1,6 @@
+#ifndef CPROVER_GOTO_SYMEX_WITNESSES_H
+#define CPROVER_GOTO_SYMEX_WITNESSES_H
+
 #include <boost/property_tree/xml_parser.hpp>
 #include <util/namespace.h>
 #include <irep2/irep2.h>
@@ -276,4 +279,10 @@ public:
 
   /// Check if any test cases have been collected
   bool has_tests() const;
+
+  // Static helper methods
+  static std::string extract_module_name(const std::string &input_file);
+  static std::string generate_pytest_filename(const std::string &module_name);
 };
+
+#endif
