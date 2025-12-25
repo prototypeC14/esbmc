@@ -7,6 +7,7 @@
 #include <boost/date_time/posix_time/posix_time.hpp>
 #include <fstream>
 #include <unordered_set>
+#include <algorithm>
 
 std::string ctest_generator::clean_variable_name(const std::string &name) const
 {
@@ -32,6 +33,42 @@ std::string ctest_generator::clean_variable_name(const std::string &name) const
     var_name = var_name.substr(9);
   else if (has_prefix(var_name, "c::"))
     var_name = var_name.substr(3);
+
+  // Remove remaining "::" separators (namespace/scope markers)
+  size_t scope_pos;
+  while ((scope_pos = var_name.find("::")) != std::string::npos)
+  {
+    var_name = var_name.substr(scope_pos + 2);
+  }
+
+  // Remove $tmp:: and similar internal markers
+  size_t tmp_pos;
+  while ((tmp_pos = var_name.find("$tmp::")) != std::string::npos)
+  {
+    var_name = var_name.substr(tmp_pos + 6);
+  }
+
+  // Remove $return_value$ marker
+  size_t ret_pos;
+  while ((ret_pos = var_name.find("return_value$")) != std::string::npos)
+  {
+    var_name.erase(ret_pos, 13);
+  }
+
+  // Remove any remaining $ characters (used for internal naming)
+  var_name.erase(std::remove(var_name.begin(), var_name.end(), '$'), var_name.end());
+
+  // If the name contains __VERIFIER_ functions, it's an internal temporary
+  // Extract just a simple name or return empty to trigger fallback naming
+  if (var_name.find("__VERIFIER_") != std::string::npos ||
+      var_name.find("___VERIFIER_") != std::string::npos)
+  {
+    return "";  // Will be replaced with generic name like "value_N"
+  }
+
+  // If the name is empty or invalid, return empty for fallback naming
+  if (var_name.empty() || !isalpha(var_name[0]))
+    return "";
 
   return var_name;
 }
@@ -152,6 +189,7 @@ void ctest_generator::collect(
     extracted_func_name = extract_function_name(target, smt_conv);
 
   // Extract nondet values from counterexample
+  int value_counter = 0;
   for (auto const &SSA_step : target.SSA_steps)
   {
     if (!smt_conv.l_get(SSA_step.guard_ast).is_true())
@@ -185,7 +223,17 @@ void ctest_generator::collect(
       auto concrete_value = smt_conv.get(nondet_expr);
 
       test_variable var;
-      var.name = var_name;
+
+      // Use fallback naming if clean_variable_name returned empty or invalid name
+      if (var_name.empty())
+      {
+        var.name = "value_" + std::to_string(value_counter++);
+      }
+      else
+      {
+        var.name = var_name;
+      }
+
       var.type = type_to_c_string(concrete_value->type);
       var.value = format_c_value(concrete_value, concrete_value->type);
 
@@ -334,6 +382,7 @@ void ctest_generator::generate_single(
   std::string func_name = extract_function_name(target, smt_conv);
 
   // Traverse SSA steps to extract nondet variables
+  int value_counter = 0;
   for (auto const &SSA_step : target.SSA_steps)
   {
     if (!smt_conv.l_get(SSA_step.guard_ast).is_true())
@@ -367,7 +416,17 @@ void ctest_generator::generate_single(
       auto concrete_value = smt_conv.get(nondet_expr);
 
       test_variable var;
-      var.name = var_name;
+
+      // Use fallback naming if clean_variable_name returned empty or invalid name
+      if (var_name.empty())
+      {
+        var.name = "value_" + std::to_string(value_counter++);
+      }
+      else
+      {
+        var.name = var_name;
+      }
+
       var.type = type_to_c_string(concrete_value->type);
       var.value = format_c_value(concrete_value, concrete_value->type);
 
