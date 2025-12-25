@@ -231,6 +231,9 @@ void ctest_generator::collect(
     extracted_func_name = extract_function_name(target, smt_conv);
 
   // Extract nondet values from counterexample
+  log_status("[CTest DEBUG] Starting collect - SSA steps: {}", target.SSA_steps.size());
+  int collected_count = 0;
+
   for (auto const &SSA_step : target.SSA_steps)
   {
     if (!smt_conv.l_get(SSA_step.guard_ast).is_true())
@@ -255,9 +258,15 @@ void ctest_generator::collect(
       var.c_type = type_to_c_string(concrete_value->type);
       var.value = format_c_value(concrete_value, concrete_value->type);
 
+      collected_count++;
+      log_status("[CTest DEBUG] Nondet #{}: type={}, value={}",
+                 collected_count, var.verifier_type, var.value);
+
       current_test.push_back(var);
     }
   }
+
+  log_status("[CTest DEBUG] Finished collect - total nondet values: {}", collected_count);
 
   // Store collected data if we found any nondet values
   if (!current_test.empty())
