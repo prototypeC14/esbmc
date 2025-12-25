@@ -223,7 +223,7 @@ void ctest_generator::collect(
   (void)ns;  // May be used later
 
   std::vector<test_variable> current_test;
-  std::unordered_set<std::string> seen_nondets;
+  std::unordered_set<std::string> seen_lhs;  // Track by LHS variable instead of nondet symbol
 
   // Extract function name if not already set
   std::string extracted_func_name;
@@ -231,7 +231,6 @@ void ctest_generator::collect(
     extracted_func_name = extract_function_name(target, smt_conv);
 
   // Extract nondet values from counterexample
-  int value_counter = 0;
   for (auto const &SSA_step : target.SSA_steps)
   {
     if (!smt_conv.l_get(SSA_step.guard_ast).is_true())
@@ -239,14 +238,6 @@ void ctest_generator::collect(
 
     if (SSA_step.is_assignment())
     {
-      // Extract variable name
-      std::string var_name;
-      if (is_symbol2t(SSA_step.lhs))
-      {
-        const symbol2t &lhs_sym = to_symbol2t(SSA_step.lhs);
-        var_name = clean_variable_name(lhs_sym.get_symbol_name());
-      }
-
       // Check if this is a nondet assignment
       auto nondet_expr = symex_slicet::get_nondet_symbol(SSA_step.rhs);
       if (!nondet_expr || !is_symbol2t(nondet_expr))
@@ -256,10 +247,21 @@ void ctest_generator::collect(
       if (!has_prefix(sym.thename.as_string(), "nondet$"))
         continue;
 
-      if (seen_nondets.count(sym.thename.as_string()))
+      // Use LHS variable name for deduplication (each assignment is unique)
+      std::string lhs_name;
+      if (is_symbol2t(SSA_step.lhs))
+      {
+        lhs_name = to_symbol2t(SSA_step.lhs).get_symbol_name();
+      }
+      else
+      {
+        continue;  // Skip if LHS is not a symbol
+      }
+
+      if (seen_lhs.count(lhs_name))
         continue;
 
-      seen_nondets.insert(sym.thename.as_string());
+      seen_lhs.insert(lhs_name);
 
       // Get concrete value and type
       auto concrete_value = smt_conv.get(nondet_expr);
@@ -400,8 +402,8 @@ void ctest_generator::generate_single(
   // Extract source file
   std::string src_file = config.options.get_option("input-file");
 
-  // Track nondet symbols we've seen
-  std::unordered_set<std::string> seen_nondets;
+  // Track LHS variables we've seen
+  std::unordered_set<std::string> seen_lhs;
   std::vector<test_variable> test_vars;
 
   // Extract function name
@@ -424,10 +426,21 @@ void ctest_generator::generate_single(
       if (!has_prefix(sym.thename.as_string(), "nondet$"))
         continue;
 
-      if (seen_nondets.count(sym.thename.as_string()))
+      // Use LHS variable name for deduplication (each assignment is unique)
+      std::string lhs_name;
+      if (is_symbol2t(SSA_step.lhs))
+      {
+        lhs_name = to_symbol2t(SSA_step.lhs).get_symbol_name();
+      }
+      else
+      {
+        continue;  // Skip if LHS is not a symbol
+      }
+
+      if (seen_lhs.count(lhs_name))
         continue;
 
-      seen_nondets.insert(sym.thename.as_string());
+      seen_lhs.insert(lhs_name);
 
       // Get the concrete value from the solver
       auto concrete_value = smt_conv.get(nondet_expr);
