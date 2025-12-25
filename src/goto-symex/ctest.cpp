@@ -413,6 +413,10 @@ void ctest_generator::generate_single(
   std::string func_name = extract_function_name(target, smt_conv);
 
   // Traverse SSA steps to extract nondet variables - following witnesses.cpp
+  log_status("[CTest DEBUG] generate_single() - SSA steps: {}", target.SSA_steps.size());
+  int collected_count = 0;
+  int skipped_count = 0;
+
   for (auto const &SSA_step : target.SSA_steps)
   {
     if (!smt_conv.l_get(SSA_step.guard_ast).is_true())
@@ -430,7 +434,11 @@ void ctest_generator::generate_single(
 
       // Deduplicate by nondet symbol name (same as witnesses.cpp)
       if (seen_nondets.count(sym.thename.as_string()))
+      {
+        skipped_count++;
+        log_status("[CTest DEBUG] generate_single() - Skipped duplicate: {}", sym.thename.as_string());
         continue;
+      }
 
       seen_nondets.insert(sym.thename.as_string());
 
@@ -442,9 +450,15 @@ void ctest_generator::generate_single(
       var.c_type = type_to_c_string(concrete_value->type);
       var.value = format_c_value(concrete_value, concrete_value->type);
 
+      collected_count++;
+      log_status("[CTest DEBUG] generate_single() - Collected #{}: symbol='{}', type={}, value={}",
+                 collected_count, sym.thename.as_string(), var.verifier_type, var.value);
+
       test_vars.push_back(var);
     }
   }
+
+  log_status("[CTest DEBUG] generate_single() - collected: {}, skipped: {}", collected_count, skipped_count);
 
   if (test_vars.empty())
   {
