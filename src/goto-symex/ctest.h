@@ -14,9 +14,9 @@ class ctest_generator
 private:
   struct test_variable
   {
-    std::string name;
-    std::string type;  // C type: "int", "float", "bool", etc.
-    std::string value;
+    std::string verifier_type;  // "int", "uint", "char", "uchar", "float", etc. for __VERIFIER_nondet_TYPE
+    std::string c_type;          // C type: "int", "unsigned int", "float", etc.
+    std::string value;           // The concrete value
   };
 
   std::vector<std::vector<test_variable>> test_cases;
@@ -32,8 +32,9 @@ private:
     const symex_target_equationt &target,
     smt_convt &smt_conv) const;
 
-  /// Helper: Convert type2t to C type string
+  /// Helper: Convert type2t to C type string and VERIFIER type string
   std::string type_to_c_string(const type2tc &type) const;
+  std::string type_to_verifier_string(const type2tc &type) const;
 
   /// Helper: Format value for C code
   std::string format_c_value(
