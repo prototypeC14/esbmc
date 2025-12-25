@@ -223,7 +223,7 @@ void ctest_generator::collect(
   (void)ns;  // May be used later
 
   std::vector<test_variable> current_test;
-  std::unordered_set<std::string> seen_lhs;  // Track by LHS variable instead of nondet symbol
+  // No deduplication - collect all nondet assignments in order
 
   // Extract function name if not already set
   std::string extracted_func_name;
@@ -246,22 +246,6 @@ void ctest_generator::collect(
       const symbol2t &sym = to_symbol2t(nondet_expr);
       if (!has_prefix(sym.thename.as_string(), "nondet$"))
         continue;
-
-      // Use LHS variable name for deduplication (each assignment is unique)
-      std::string lhs_name;
-      if (is_symbol2t(SSA_step.lhs))
-      {
-        lhs_name = to_symbol2t(SSA_step.lhs).get_symbol_name();
-      }
-      else
-      {
-        continue;  // Skip if LHS is not a symbol
-      }
-
-      if (seen_lhs.count(lhs_name))
-        continue;
-
-      seen_lhs.insert(lhs_name);
 
       // Get concrete value and type
       auto concrete_value = smt_conv.get(nondet_expr);
@@ -402,8 +386,7 @@ void ctest_generator::generate_single(
   // Extract source file
   std::string src_file = config.options.get_option("input-file");
 
-  // Track LHS variables we've seen
-  std::unordered_set<std::string> seen_lhs;
+  // No deduplication - collect all nondet assignments in order
   std::vector<test_variable> test_vars;
 
   // Extract function name
@@ -425,22 +408,6 @@ void ctest_generator::generate_single(
       const symbol2t &sym = to_symbol2t(nondet_expr);
       if (!has_prefix(sym.thename.as_string(), "nondet$"))
         continue;
-
-      // Use LHS variable name for deduplication (each assignment is unique)
-      std::string lhs_name;
-      if (is_symbol2t(SSA_step.lhs))
-      {
-        lhs_name = to_symbol2t(SSA_step.lhs).get_symbol_name();
-      }
-      else
-      {
-        continue;  // Skip if LHS is not a symbol
-      }
-
-      if (seen_lhs.count(lhs_name))
-        continue;
-
-      seen_lhs.insert(lhs_name);
 
       // Get the concrete value from the solver
       auto concrete_value = smt_conv.get(nondet_expr);
