@@ -223,16 +223,17 @@ void ctest_generator::collect(
   (void)ns;  // May be used later
 
   std::vector<test_variable> current_test;
-  // No deduplication - collect all nondet assignments in order
+  std::unordered_set<std::string> seen_nondets;  // Match witnesses.cpp:generate_testcase()
 
   // Extract function name if not already set
   std::string extracted_func_name;
   if (function_name.empty())
     extracted_func_name = extract_function_name(target, smt_conv);
 
-  // Extract nondet values from counterexample
+  // Extract nondet values from counterexample - matching witnesses.cpp logic
   log_status("[CTest DEBUG] Starting collect - SSA steps: {}", target.SSA_steps.size());
   int collected_count = 0;
+  int skipped_count = 0;
 
   for (auto const &SSA_step : target.SSA_steps)
   {
@@ -241,7 +242,7 @@ void ctest_generator::collect(
 
     if (SSA_step.is_assignment())
     {
-      // Check if this is a nondet assignment
+      /* Following witnesses.cpp:generate_testcase() pattern */
       auto nondet_expr = symex_slicet::get_nondet_symbol(SSA_step.rhs);
       if (!nondet_expr || !is_symbol2t(nondet_expr))
         continue;
@@ -249,6 +250,16 @@ void ctest_generator::collect(
       const symbol2t &sym = to_symbol2t(nondet_expr);
       if (!has_prefix(sym.thename.as_string(), "nondet$"))
         continue;
+
+      // Deduplicate by nondet symbol name (same as witnesses.cpp)
+      if (seen_nondets.count(sym.thename.as_string()))
+      {
+        skipped_count++;
+        log_status("[CTest DEBUG] Skipped duplicate nondet symbol: {}", sym.thename.as_string());
+        continue;
+      }
+
+      seen_nondets.insert(sym.thename.as_string());
 
       // Get concrete value and type
       auto concrete_value = smt_conv.get(nondet_expr);
@@ -259,14 +270,14 @@ void ctest_generator::collect(
       var.value = format_c_value(concrete_value, concrete_value->type);
 
       collected_count++;
-      log_status("[CTest DEBUG] Nondet #{}: type={}, value={}",
-                 collected_count, var.verifier_type, var.value);
+      log_status("[CTest DEBUG] Collected nondet #{}: symbol='{}', type={}, value={}",
+                 collected_count, sym.thename.as_string(), var.verifier_type, var.value);
 
       current_test.push_back(var);
     }
   }
 
-  log_status("[CTest DEBUG] Finished collect - total nondet values: {}", collected_count);
+  log_status("[CTest DEBUG] Finished collect - collected: {}, skipped: {}", collected_count, skipped_count);
 
   // Store collected data if we found any nondet values
   if (!current_test.empty())
@@ -395,13 +406,13 @@ void ctest_generator::generate_single(
   // Extract source file
   std::string src_file = config.options.get_option("input-file");
 
-  // No deduplication - collect all nondet assignments in order
+  std::unordered_set<std::string> seen_nondets;  // Match witnesses.cpp pattern
   std::vector<test_variable> test_vars;
 
   // Extract function name
   std::string func_name = extract_function_name(target, smt_conv);
 
-  // Traverse SSA steps to extract nondet variables
+  // Traverse SSA steps to extract nondet variables - following witnesses.cpp
   for (auto const &SSA_step : target.SSA_steps)
   {
     if (!smt_conv.l_get(SSA_step.guard_ast).is_true())
@@ -409,7 +420,6 @@ void ctest_generator::generate_single(
 
     if (SSA_step.is_assignment())
     {
-      // Check if this is a nondet assignment
       auto nondet_expr = symex_slicet::get_nondet_symbol(SSA_step.rhs);
       if (!nondet_expr || !is_symbol2t(nondet_expr))
         continue;
@@ -417,6 +427,12 @@ void ctest_generator::generate_single(
       const symbol2t &sym = to_symbol2t(nondet_expr);
       if (!has_prefix(sym.thename.as_string(), "nondet$"))
         continue;
+
+      // Deduplicate by nondet symbol name (same as witnesses.cpp)
+      if (seen_nondets.count(sym.thename.as_string()))
+        continue;
+
+      seen_nondets.insert(sym.thename.as_string());
 
       // Get the concrete value from the solver
       auto concrete_value = smt_conv.get(nondet_expr);
