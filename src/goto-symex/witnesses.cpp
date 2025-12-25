@@ -1197,50 +1197,30 @@ void generate_testcase(
   test_case << R"(<testcase coversError="true">)"
             << "\n";
 
-  // We should only show the symbol one time
-  std::unordered_set<std::string> nondet;
+  // Use the SHARED collection logic
+  auto collected_values = collect_nondet_values(target, smt_conv);
 
-  auto generate_input = [&test_case, &smt_conv, &nondet](const expr2tc &expr) {
-    if (!expr || !is_symbol2t(expr))
-      return;
-    const symbol2t &sym = to_symbol2t(expr);
-    if (
-      config.options.get_bool_option("generate-testcase") &&
-      has_prefix(sym.thename.as_string(), "nondet$") &&
-      !nondet.count(sym.thename.as_string()))
-    {
-      nondet.insert(sym.thename.as_string());
-      auto new_rhs = smt_conv.get(expr);
+  log_status("[TestComp] Collected {} values, now outputting to XML", collected_values.size());
 
-      // I don't think there is anything beyond constant int Test-Comp
-      if (is_constant_int2t(new_rhs))
-        test_case << fmt::format(
-          "<input>{}</input>\n", to_constant_int2t(new_rhs).value);
-      else if (is_constant_floatbv2t(new_rhs))
-        test_case << fmt::format(
-          "<input>{}</input>\n",
-          to_constant_floatbv2t(new_rhs).value.to_ansi_c_string());
-      else if (is_constant_bool2t(new_rhs))
-        test_case << fmt::format(
-          "<input>{}</input>\n", to_constant_bool2t(new_rhs).value ? "1" : "0");
-    }
-  };
-  for (auto const &SSA_step : target.SSA_steps)
+  // Output collected values to XML
+  for (const auto &val : collected_values)
   {
-    if (!smt_conv.l_get(SSA_step.guard_ast).is_true())
-      continue;
+    auto value_expr = val.value_expr;
 
-    if (SSA_step.is_assignment())
-    {
-      /* AFAIK there are two ways to arrive here with a nondet symbol
-       *
-       * 1. As a plain symbol `int a = __VERIFIER_nondet_int();`
-       * 2. As a with operation `arr[4] == __VERIFIER_nondet_int();`
-       */
-      SSA_step.dump();
-      generate_input(symex_slicet::get_nondet_symbol(SSA_step.rhs));
-    }
+    if (is_constant_int2t(value_expr))
+      test_case << fmt::format(
+        "<input>{}</input>\n", to_constant_int2t(value_expr).value);
+    else if (is_constant_floatbv2t(value_expr))
+      test_case << fmt::format(
+        "<input>{}</input>\n",
+        to_constant_floatbv2t(value_expr).value.to_ansi_c_string());
+    else if (is_constant_bool2t(value_expr))
+      test_case << fmt::format(
+        "<input>{}</input>\n", to_constant_bool2t(value_expr).value ? "1" : "0");
   }
+
   test_case << "</testcase>";
   test_case.close();
+
+  log_status("[TestComp] Written {} inputs to {}", collected_values.size(), file_name);
 }
