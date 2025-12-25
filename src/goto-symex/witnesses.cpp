@@ -1123,6 +1123,8 @@ std::vector<collected_nondet_value> collect_nondet_values(
   std::vector<collected_nondet_value> results;
   std::unordered_set<std::string> seen_nondets;
 
+  log_status("[collect_nondet] Starting - total SSA steps: {}", target.SSA_steps.size());
+
   // Use the EXACT same logic as generate_testcase
   for (auto const &SSA_step : target.SSA_steps)
   {
@@ -1139,9 +1141,16 @@ std::vector<collected_nondet_value> collect_nondet_values(
       if (!has_prefix(sym.thename.as_string(), "nondet$"))
         continue;
 
+      // Log EVERY nondet symbol found (before dedup)
+      log_status("[collect_nondet] Found nondet symbol: '{}'", sym.thename.as_string());
+      SSA_step.dump();  // Dump SSA step for debugging
+
       // Deduplicate by symbol name (same as generate_testcase)
       if (seen_nondets.count(sym.thename.as_string()))
+      {
+        log_status("[collect_nondet] Skipping duplicate: '{}'", sym.thename.as_string());
         continue;
+      }
 
       seen_nondets.insert(sym.thename.as_string());
 
@@ -1154,10 +1163,16 @@ std::vector<collected_nondet_value> collect_nondet_values(
       val.value_expr = concrete_value;
       val.type = concrete_value->type;
 
+      log_status("[collect_nondet] Collected #{}: symbol='{}', value={}",
+                 results.size() + 1, val.symbol_name,
+                 is_constant_int2t(concrete_value) ?
+                   std::to_string(to_constant_int2t(concrete_value).value.to_int64()) : "?");
+
       results.push_back(val);
     }
   }
 
+  log_status("[collect_nondet] Finished - collected {} values", results.size());
   return results;
 }
 
