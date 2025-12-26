@@ -378,65 +378,30 @@ void ctest_generator::generate_single(
   // Extract source file
   std::string src_file = config.options.get_option("input-file");
 
-  std::unordered_set<std::string> seen_nondets;  // Match witnesses.cpp pattern
+  // Use the SHARED collection logic (same as generate_testcase)
+  auto collected_values = collect_nondet_values(target, smt_conv);
+
+  log_status("[CTest DEBUG] generate_single() - collected {} values", collected_values.size());
+
+  // Convert to test_variable format
   std::vector<test_variable> test_vars;
-
-  // Extract function name
-  std::string func_name = extract_function_name(target, smt_conv);
-
-  // Traverse SSA steps to extract nondet variables - following witnesses.cpp
-  log_status("[CTest DEBUG] generate_single() - SSA steps: {}", target.SSA_steps.size());
-  int collected_count = 0;
-  int skipped_count = 0;
-
-  for (auto const &SSA_step : target.SSA_steps)
+  for (const auto &val : collected_values)
   {
-    if (!smt_conv.l_get(SSA_step.guard_ast).is_true())
-      continue;
-
-    if (SSA_step.is_assignment())
-    {
-      auto nondet_expr = symex_slicet::get_nondet_symbol(SSA_step.rhs);
-      if (!nondet_expr || !is_symbol2t(nondet_expr))
-        continue;
-
-      const symbol2t &sym = to_symbol2t(nondet_expr);
-      if (!has_prefix(sym.thename.as_string(), "nondet$"))
-        continue;
-
-      // Deduplicate by nondet symbol name (same as witnesses.cpp)
-      if (seen_nondets.count(sym.thename.as_string()))
-      {
-        skipped_count++;
-        log_status("[CTest DEBUG] generate_single() - Skipped duplicate: {}", sym.thename.as_string());
-        continue;
-      }
-
-      seen_nondets.insert(sym.thename.as_string());
-
-      // Get the concrete value from the solver
-      auto concrete_value = smt_conv.get(nondet_expr);
-
-      test_variable var;
-      var.verifier_type = type_to_verifier_string(concrete_value->type);
-      var.c_type = type_to_c_string(concrete_value->type);
-      var.value = format_c_value(concrete_value, concrete_value->type);
-
-      collected_count++;
-      log_status("[CTest DEBUG] generate_single() - Collected #{}: symbol='{}', type={}, value={}",
-                 collected_count, sym.thename.as_string(), var.verifier_type, var.value);
-
-      test_vars.push_back(var);
-    }
+    test_variable var;
+    var.verifier_type = type_to_verifier_string(val.type);
+    var.c_type = type_to_c_string(val.type);
+    var.value = format_c_value(val.value_expr, val.type);
+    test_vars.push_back(var);
   }
-
-  log_status("[CTest DEBUG] generate_single() - collected: {}, skipped: {}", collected_count, skipped_count);
 
   if (test_vars.empty())
   {
     log_warning("No nondet variables found. No CTest test case generated.");
     return;
   }
+
+  // Extract function name (optional, for documentation)
+  std::string func_name = extract_function_name(target, smt_conv);
 
   // Generate single test file
   std::string test_file_name = "test_case.c";
