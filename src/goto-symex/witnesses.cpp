@@ -1141,6 +1141,18 @@ std::vector<collected_nondet_value> collect_nondet_values(
       if (!has_prefix(sym.thename.as_string(), "nondet$"))
         continue;
 
+      // Skip system library nondets (stdin, stdout, stderr, etc.)
+      // These are from /usr/include/ or other system paths
+      std::string file_path = SSA_step.source.pc->location.file().as_string();
+      if (has_prefix(file_path, "/usr/include/") ||
+          has_prefix(file_path, "/lib/") ||
+          has_prefix(file_path, "/opt/"))
+      {
+        log_status("[collect_nondet] Skipping system library nondet: '{}' from {}",
+                   sym.thename.as_string(), file_path);
+        continue;
+      }
+
       // Log EVERY nondet symbol found (before dedup)
       log_status("[collect_nondet] Found nondet symbol: '{}'", sym.thename.as_string());
       SSA_step.dump();  // Dump SSA step for debugging
