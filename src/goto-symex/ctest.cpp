@@ -187,12 +187,8 @@ std::string ctest_generator::type_to_verifier_string(const type2tc &type) const
   return "int";  // Fallback
 }
 
-std::string ctest_generator::format_c_value(
-  const expr2tc &value,
-  const type2tc &type) const
+std::string ctest_generator::format_c_value(const expr2tc &value) const
 {
-  (void)type;  // Reserved for future type-specific formatting
-
   if (is_constant_int2t(value))
   {
     return integer2string(to_constant_int2t(value).value);
@@ -243,7 +239,7 @@ void ctest_generator::collect(
     test_variable var;
     var.verifier_type = type_to_verifier_string(val.type);
     var.c_type = type_to_c_string(val.type);
-    var.value = format_c_value(val.value_expr, val.type);
+    var.value = format_c_value(val.value_expr);
 
     log_status("[CTest DEBUG] Nondet: symbol='{}', type={}, value={}",
                val.symbol_name, var.verifier_type, var.value);
@@ -276,10 +272,8 @@ bool ctest_generator::has_tests() const
   return !test_cases.empty();
 }
 
-void ctest_generator::generate(const std::string &output_dir) const
+void ctest_generator::generate() const
 {
-  (void)output_dir;  // Files are generated in current directory
-
   std::lock_guard<std::mutex> lock(data_mutex);
 
   if (test_cases.empty())
@@ -394,7 +388,7 @@ void ctest_generator::generate_single(
     test_variable var;
     var.verifier_type = type_to_verifier_string(val.type);
     var.c_type = type_to_c_string(val.type);
-    var.value = format_c_value(val.value_expr, val.type);
+    var.value = format_c_value(val.value_expr);
     test_vars.push_back(var);
   }
 

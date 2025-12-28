@@ -37,9 +37,7 @@ private:
   std::string type_to_verifier_string(const type2tc &type) const;
 
   /// Helper: Format value for C code
-  std::string format_c_value(
-    const expr2tc &value,
-    const type2tc &type) const;
+  std::string format_c_value(const expr2tc &value) const;
 
 public:
   ctest_generator() = default;
@@ -53,8 +51,8 @@ public:
     smt_convt &smt_conv,
     const namespacet &ns);
 
-  /// Generate C test files and CMakeLists.txt from collected data
-  void generate(const std::string &output_dir) const;
+  /// Generate C test files and CMakeLists.txt from collected data (in current directory)
+  void generate() const;
 
   /// Single-shot generation for non-coverage mode
   void generate_single(
