@@ -4,6 +4,8 @@
 
 ESBMC supports automatic generation of CTest test cases for C programs. This feature uses symbolic execution and SMT solving to automatically discover test inputs that achieve high code coverage, outputting ready-to-compile test cases compatible with CMake's CTest framework.
 
+**Implementation Note**: The CTest generator reuses ESBMC's existing symbolic execution engine and the same nondet value collection logic as the TestComp XML generator (`--generate-testcase`). The CTest-specific code only handles formatting output as C source files instead of XML.
+
 ## Dependencies
 
 ### Required Dependencies
@@ -214,7 +216,9 @@ genhtml coverage.info --output-directory coverage_html
 
 ## Supported Types
 
-All SV-COMP standard `__VERIFIER_nondet_*()` types are supported:
+The CTest generator can format all types supported by ESBMC's symbolic execution engine. These types are collected using the same logic as `--generate-testcase` (TestComp XML format) and then formatted as C code.
+
+**Note**: Type support is provided by ESBMC's core engine, not the CTest generator itself. The CTest generator only handles formatting.
 
 ### Integer Types
 | Function | C Type | Example Values |
@@ -287,42 +291,53 @@ _Bool __VERIFIER_nondet_bool(void) {
 
 ## How It Works
 
-1. **Symbolic Execution**: ESBMC translates your C code to an internal SSA (Static Single Assignment) representation and performs symbolic execution
-2. **SMT Solving**: The SMT solver finds concrete values for the symbolic inputs (`__VERIFIER_nondet_*`)
-3. **Nondet Collection**: ESBMC collects all nondet values from the counterexample trace
-4. **Test Generation**: These values are formatted as static arrays in `__VERIFIER_nondet_*()` function implementations
-5. **Build Configuration**: A `CMakeLists.txt` is generated to compile original source + test implementations
-6. **Execution**: CTest runs each test executable and reports results
+1. **Symbolic Execution**: ESBMC's core engine translates your C code to an internal SSA (Static Single Assignment) representation and performs symbolic execution (supports all `__VERIFIER_nondet_*` types)
+2. **SMT Solving**: The SMT solver finds concrete values for the symbolic inputs
+3. **Nondet Collection**: Uses `collect_nondet_values()` - the **same shared logic** as `--generate-testcase` (TestComp XML format)
+4. **Type Formatting**: CTest generator maps types to C syntax (e.g., `is_bool_type` → `_Bool`, `is_floatbv_type(32)` → `float`)
+5. **Code Generation**: Values are formatted as static arrays in `__VERIFIER_nondet_*()` function implementations
+6. **Build Configuration**: A `CMakeLists.txt` is generated to compile original source + test implementations
+7. **Execution**: CTest runs each test executable and reports results
+
+**Key Point**: The CTest generator does **not** implement type support itself. It reuses ESBMC's existing symbolic execution capabilities and the same collection logic as TestComp XML generation.
 
 ### Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│ ESBMC (--generate-ctest-testcase)                           │
+│ ESBMC Core (Symbolic Execution Engine)                      │
+│ • Supports all __VERIFIER_nondet_* types                    │
+│ • SSA transformation & SMT solving                          │
 └────────────┬────────────────────────────────────────────────┘
              │
-             ├─> Symbolic Execution (goto-symex)
-             │
-             ├─> SMT Solving (counterexample generation)
-             │
-             ├─> collect_nondet_values() [shared with TestComp]
-             │
-             ├─> ctest_generator::generate()
-             │   │
-             │   ├─> Generate test_case_N.c files
-             │   └─> Generate CMakeLists.txt
-             │
-             v
-      ┌──────────────────┐
-      │  CMake + CTest   │
-      └──────────────────┘
-             │
-             ├─> cmake .. (configure)
-             ├─> cmake --build . (compile)
-             └─> ctest (run tests)
-                  │
-                  └─> gcov/gcovr (optional coverage)
+             ├──> --generate-testcase (TestComp XML)
+             │         │
+             │         └─> generate_testcase()
+             │                  │
+             ├──────────────────┴─> collect_nondet_values() ◄───┐
+             │                      [SHARED LOGIC]              │
+             │                                                  │
+             └──> --generate-ctest-testcase                    │
+                       │                                        │
+                       └─> ctest_generator::collect() ─────────┘
+                                  │
+                                  ├─> type_to_c_string()
+                                  ├─> format_c_value()
+                                  │
+                                  v
+                           test_case_N.c
+                           CMakeLists.txt
+                                  │
+                                  v
+                           CMake + CTest
+                                  │
+                                  └─> gcov/gcovr
 ```
+
+**Legend**:
+- **ESBMC Core**: Provides type support via symbolic execution
+- **Shared Logic**: `collect_nondet_values()` used by both TestComp and CTest
+- **CTest Generator**: Only handles C code formatting
 
 ## Comparison with Other Test Generators
 
@@ -339,11 +354,13 @@ _Bool __VERIFIER_nondet_bool(void) {
 ## Benefits
 
 ✅ **Standards-Compliant**: Uses SV-COMP standard `__VERIFIER_*` API
+✅ **Code Reuse**: Shares collection logic with TestComp XML generation - guaranteed consistency
 ✅ **Coverage-Ready**: Built-in support for gcov coverage analysis
 ✅ **CMake Integration**: Works seamlessly with existing CMake projects
 ✅ **Reproducible**: Generated tests are standalone C files
 ✅ **CI/CD Friendly**: Easy integration with continuous integration pipelines
 ✅ **Multi-Platform**: Works on Linux, macOS, Windows (with appropriate tools)
+✅ **Type Complete**: Supports all types handled by ESBMC's symbolic execution engine
 
 ## Limitations
 
