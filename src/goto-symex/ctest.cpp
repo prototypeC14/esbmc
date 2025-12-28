@@ -136,7 +136,7 @@ std::string ctest_generator::type_to_c_string(const type2tc &type) const
   }
   else if (is_bool_type(type))
   {
-    return "int";  // C uses int for bool
+    return "_Bool";  // SV-COMP standard: use C99 _Bool type
   }
   else if (is_pointer_type(type))
   {

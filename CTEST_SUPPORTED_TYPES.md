@@ -28,7 +28,7 @@ CTest生成器完全支持以下 `__VERIFIER_nondet_*` 函数类型：
 
 | VERIFIER函数 | C类型 | 说明 | 示例值 |
 |------------|------|------|-------|
-| `__VERIFIER_nondet_bool()` | `int` | 布尔值 | `0, 1` |
+| `__VERIFIER_nondet_bool()` | `_Bool` | 布尔值（C99标准） | `0, 1` |
 | `__VERIFIER_nondet_pointer()` | `void*` | 指针类型 | `NULL, 0xABCD` |
 
 ## 使用示例
