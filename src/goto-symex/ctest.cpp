@@ -191,6 +191,8 @@ std::string ctest_generator::format_c_value(
   const expr2tc &value,
   const type2tc &type) const
 {
+  (void)type;  // Reserved for future type-specific formatting
+
   if (is_constant_int2t(value))
   {
     return integer2string(to_constant_int2t(value).value);
@@ -276,6 +278,8 @@ bool ctest_generator::has_tests() const
 
 void ctest_generator::generate(const std::string &output_dir) const
 {
+  (void)output_dir;  // Files are generated in current directory
+
   std::lock_guard<std::mutex> lock(data_mutex);
 
   if (test_cases.empty())
