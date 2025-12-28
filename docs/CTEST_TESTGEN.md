@@ -220,30 +220,40 @@ The CTest generator can format all types supported by ESBMC's symbolic execution
 
 **Note**: Type support is provided by ESBMC's core engine, not the CTest generator itself. The CTest generator only handles formatting.
 
-### Integer Types
-| Function | C Type | Example Values |
-|----------|--------|----------------|
-| `__VERIFIER_nondet_int()` | `int` | `-10, 0, 127` |
-| `__VERIFIER_nondet_uint()` | `unsigned int` | `0, 255, 1000` |
-| `__VERIFIER_nondet_char()` | `char` | `-128, 0, 127` |
-| `__VERIFIER_nondet_uchar()` | `unsigned char` | `0, 255` |
-| `__VERIFIER_nondet_short()` | `short` | `-32768, 0, 32767` |
-| `__VERIFIER_nondet_ushort()` | `unsigned short` | `0, 65535` |
-| `__VERIFIER_nondet_long()` | `long long` | `-2147483648, 0` |
-| `__VERIFIER_nondet_ulong()` | `unsigned long long` | `0, 4294967295` |
+### Integer Types (Signed)
+| Function | C Type | Bit Width | Example Values |
+|----------|--------|-----------|----------------|
+| `__VERIFIER_nondet_char()` | `char` | 8-bit | `-128, 0, 127` |
+| `__VERIFIER_nondet_schar()` | `signed char` | 8-bit | `-128, 0, 127` |
+| `__VERIFIER_nondet_short()` | `short` | 16-bit | `-32768, 0, 32767` |
+| `__VERIFIER_nondet_int()` | `int` | 32-bit | `-2147483648, 0, 2147483647` |
+| `__VERIFIER_nondet_long()` | `long` | 64-bit | `-2^63, 0, 2^63-1` |
+
+### Integer Types (Unsigned)
+| Function | C Type | Bit Width | Example Values |
+|----------|--------|-----------|----------------|
+| `__VERIFIER_nondet_uchar()` | `unsigned char` | 8-bit | `0, 255` |
+| `__VERIFIER_nondet_ushort()` | `unsigned short` | 16-bit | `0, 65535` |
+| `__VERIFIER_nondet_uint()` | `unsigned int` | 32-bit | `0, 4294967295` |
+| `__VERIFIER_nondet_ulong()` | `unsigned long` | 64-bit | `0, 2^64-1` |
 
 ### Floating-Point Types
-| Function | C Type | Example Values |
-|----------|--------|----------------|
-| `__VERIFIER_nondet_float()` | `float` | `0.0, 3.14, -1.5` |
-| `__VERIFIER_nondet_double()` | `double` | `0.0, 2.718281828` |
+| Function | C Type | Bit Width | Example Values |
+|----------|--------|-----------|----------------|
+| `__VERIFIER_nondet_float()` | `float` | 32-bit | `0.0, 3.14, -1.5` |
+| `__VERIFIER_nondet_double()` | `double` | 64-bit | `0.0, 2.718281828` |
 
 ### Boolean Type
 | Function | C Type | Standard | Example Values |
 |----------|--------|----------|----------------|
 | `__VERIFIER_nondet_bool()` | `_Bool` | C99/SV-COMP | `0, 1` |
 
-**Important**: The boolean type uses C99's `_Bool` type per SV-COMP standard, not `int`.
+**Source**: This list is based on ESBMC's internal definitions in `src/clang-c-frontend/clang_c_language.cpp`.
+
+**Important Notes**:
+- The boolean type uses C99's `_Bool` type per SV-COMP standard, not `int`
+- `char` and `signed char` are distinct types in C; both are supported
+- Actual C type sizes may vary by platform, but ESBMC uses the bit widths shown above
 
 ## Example: Multiple Types
 
