@@ -1,0 +1,4 @@
+cmake_minimum_required(VERSION 3.10)
+project(ESBMCGeneratedTest C)
+
+add_executable(test_case test_case.c)
