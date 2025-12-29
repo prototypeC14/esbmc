@@ -1,6 +1,6 @@
 #!/bin/bash
 # Test script for bool-svcomp CTest generation test
-# This script runs ESBMC and outputs generated file contents for validation
+# This script runs ESBMC and validates generated file contents
 
 set -e
 
@@ -10,17 +10,38 @@ rm -f test_case.c test_case_*.c CMakeLists.txt
 # Run ESBMC to generate CTest test case
 ${ESBMC:-esbmc} main.c --generate-ctest-testcase
 
-# Output generated files to stdout for test.desc validation
-if [ -f "test_case.c" ]; then
-    echo "=== BEGIN test_case.c ==="
-    cat test_case.c
-    echo "=== END test_case.c ==="
+# Validate test_case.c exists and contains expected content
+if [ ! -f "test_case.c" ]; then
+    echo "ERROR: test_case.c not generated"
+    exit 1
 fi
 
-if [ -f "CMakeLists.txt" ]; then
-    echo "=== BEGIN CMakeLists.txt ==="
-    cat CMakeLists.txt
-    echo "=== END CMakeLists.txt ==="
+if ! grep -q "_Bool __VERIFIER_nondet_bool(void)" test_case.c; then
+    echo "ERROR: Missing _Bool __VERIFIER_nondet_bool function"
+    exit 1
 fi
 
+if ! grep -q "static const _Bool v\[\]" test_case.c; then
+    echo "ERROR: Missing static const _Bool array"
+    exit 1
+fi
+
+if ! grep -q "return v\[i++\]" test_case.c; then
+    echo "ERROR: Missing return statement"
+    exit 1
+fi
+
+# Validate CMakeLists.txt exists and contains expected content
+if [ ! -f "CMakeLists.txt" ]; then
+    echo "ERROR: CMakeLists.txt not generated"
+    exit 1
+fi
+
+if ! grep -q "cmake_minimum_required" CMakeLists.txt; then
+    echo "ERROR: Missing cmake_minimum_required"
+    exit 1
+fi
+
+# All validations passed
+echo "VERIFICATION SUCCESSFUL"
 exit 0
