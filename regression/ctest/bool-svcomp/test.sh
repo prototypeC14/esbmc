@@ -16,18 +16,10 @@ if [ ! -f "test_case.c" ]; then
     exit 1
 fi
 
-if ! grep -q "_Bool __VERIFIER_nondet_bool(void)" test_case.c; then
-    echo "ERROR: Missing _Bool __VERIFIER_nondet_bool function"
-    exit 1
-fi
-
-if ! grep -q "static const _Bool v\[\]" test_case.c; then
-    echo "ERROR: Missing static const _Bool array"
-    exit 1
-fi
-
-if ! grep -q "return v\[i++\]" test_case.c; then
-    echo "ERROR: Missing return statement"
+# Validate complete function structure using grep -Pzo (Perl regex, multiline)
+# This checks for the complete _Bool function with proper SV-COMP compliant type
+if ! grep -Pzo '_Bool __VERIFIER_nondet_bool\(void\) \{[^}]*static int i = 0;[^}]*static const _Bool v\[\][^}]*return v\[i\+\+\];[^}]*\}' test_case.c > /dev/null; then
+    echo "ERROR: __VERIFIER_nondet_bool function structure incorrect or not using _Bool type"
     exit 1
 fi
 
@@ -37,8 +29,14 @@ if [ ! -f "CMakeLists.txt" ]; then
     exit 1
 fi
 
-if ! grep -q "cmake_minimum_required" CMakeLists.txt; then
-    echo "ERROR: Missing cmake_minimum_required"
+# Validate complete CMakeLists.txt structure
+if ! grep -q "cmake_minimum_required(VERSION 3.10)" CMakeLists.txt; then
+    echo "ERROR: Missing or incorrect cmake_minimum_required"
+    exit 1
+fi
+
+if ! grep -q "add_executable(test_case test_case.c)" CMakeLists.txt; then
+    echo "ERROR: Missing or incorrect add_executable"
     exit 1
 fi
 

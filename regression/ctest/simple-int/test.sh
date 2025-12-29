@@ -16,18 +16,9 @@ if [ ! -f "test_case.c" ]; then
     exit 1
 fi
 
-if ! grep -q "int __VERIFIER_nondet_int(void)" test_case.c; then
-    echo "ERROR: Missing __VERIFIER_nondet_int function"
-    exit 1
-fi
-
-if ! grep -q "static const int v\[\]" test_case.c; then
-    echo "ERROR: Missing static const int array"
-    exit 1
-fi
-
-if ! grep -q "return v\[i++\]" test_case.c; then
-    echo "ERROR: Missing return statement"
+# Validate complete function structure using grep -Pzo (Perl regex, multiline)
+if ! grep -Pzo 'int __VERIFIER_nondet_int\(void\) \{[^}]*static int i = 0;[^}]*static const int v\[\][^}]*return v\[i\+\+\];[^}]*\}' test_case.c > /dev/null; then
+    echo "ERROR: __VERIFIER_nondet_int function structure incorrect"
     exit 1
 fi
 
@@ -37,13 +28,21 @@ if [ ! -f "CMakeLists.txt" ]; then
     exit 1
 fi
 
-if ! grep -q "cmake_minimum_required" CMakeLists.txt; then
-    echo "ERROR: Missing cmake_minimum_required"
+# Validate complete CMakeLists.txt structure
+read -r -d '' cmake_expected << 'EOF' || true
+cmake_minimum_required(VERSION 3.10)
+project(ESBMCGeneratedTest C)
+
+add_executable(test_case test_case.c)
+EOF
+
+if ! grep -q "cmake_minimum_required(VERSION 3.10)" CMakeLists.txt; then
+    echo "ERROR: Missing or incorrect cmake_minimum_required"
     exit 1
 fi
 
-if ! grep -q "add_executable" CMakeLists.txt; then
-    echo "ERROR: Missing add_executable"
+if ! grep -q "add_executable(test_case test_case.c)" CMakeLists.txt; then
+    echo "ERROR: Missing or incorrect add_executable"
     exit 1
 fi
 
