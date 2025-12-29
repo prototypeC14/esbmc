@@ -65,6 +65,31 @@ function(add_esbmc_regression folder modes)
     endforeach()
 endfunction()
 
+# Special function for CTest generator tests
+# Uses wrapper script to output generated file contents
+function(add_ctest_regression_test folder modes test)
+    set(test_name "regression/${folder}/${test}")
+    set(WRAPPER_SCRIPT "${CMAKE_CURRENT_SOURCE_DIR}/${folder}/esbmc_ctest_wrapper.sh")
+    add_test(NAME ${test_name}
+             COMMAND ${Python_EXECUTABLE} ${ESBMC_REGRESSION_TOOL}
+                     --tool=${WRAPPER_SCRIPT}
+                     --regression=${CMAKE_CURRENT_SOURCE_DIR}/${folder}
+                     --modes ${modes}
+                     --file=${test}
+                     ${BENCHBRINGUP_ARGS})
+    set_tests_properties(${test_name}
+      PROPERTIES SKIP_RETURN_CODE 10
+      LABELS "regression;ctest;${folder}"
+      ENVIRONMENT "ESBMC_BIN=${ESBMC_BIN}")
+endfunction()
+
+function(add_ctest_regression folder modes)
+    SUBDIRLIST(SUBDIRS ${CMAKE_CURRENT_SOURCE_DIR}/${folder})
+    foreach(test ${SUBDIRS})
+        add_ctest_regression_test(${folder} "${modes}" ${test})
+    endforeach()
+endfunction()
+
 # conditionally enable regression suites based on configured support
 if(ENABLE_BITWUZLA)
     set(REGRESSIONS_BITWUZLA bitwuzla)
@@ -166,6 +191,9 @@ set(REGRESSIONS_CPP17 esbmc-cpp17/cpp
 # list of C++20 test suites
 set(REGRESSIONS_CPP20 esbmc-cpp20/cpp)
 
+# CTest generator regression tests
+set(REGRESSIONS_CTEST ctest)
+
 # NOTE: In order to make the best of the concurrency set sort the tests from the slowest to fastest.
 if(APPLE)
     set(REGRESSIONS esbmc-unix
@@ -197,6 +225,7 @@ if(APPLE)
                     ${REGRESSIONS_HUMANEVAL}
                     ${REGRESSIONS_QUIXBUGS}
                     ${REGRESSIONS_PYTHON_COVERAGE}
+                    ${REGRESSIONS_CTEST}
                     ltl
                     goto-transcoder
                     loop-invariants
@@ -217,6 +246,7 @@ elseif(WIN32)
                     ${REGRESSIONS_MATHSAT}
                     ${REGRESSIONS_SMTLIB}
                     ${REGRESSIONS_Z3}
+                    ${REGRESSIONS_CTEST}
                     ltl
                     goto-transcoder
        )
@@ -262,6 +292,7 @@ else()
                     ${REGRESSIONS_HUMANEVAL}
                     ${REGRESSIONS_QUIXBUGS}
                     ${REGRESSIONS_PYTHON_COVERAGE}
+                    ${REGRESSIONS_CTEST}
                     ltl
                     goto-coverage
                     goto-transcoder
@@ -285,5 +316,11 @@ foreach(regression IN LISTS REGRESSIONS)
     if(CORE_REGRESSION_ONLY)
       set(MODES CORE)
     endif()
-    add_esbmc_regression("${regression}" "${MODES}")
+
+    # Use special handler for CTest generator tests
+    if(regression STREQUAL "ctest")
+        add_ctest_regression("${regression}" "${MODES}")
+    else()
+        add_esbmc_regression("${regression}" "${MODES}")
+    endif()
 endforeach()

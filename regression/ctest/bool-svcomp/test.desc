@@ -1,4 +1,12 @@
 CORE
 main.c
 --generate-ctest-testcase
-^.*Generated.*$
+^=== ESBMC CTest Generation Output ===$
+^=== BEGIN test_case\.c ===$
+_Bool __VERIFIER_nondet_bool\(void\)
+static const _Bool v\[\]
+return v\[i\+\+\]
+^=== END test_case\.c ===$
+^=== BEGIN CMakeLists\.txt ===$
+cmake_minimum_required
+^=== END CMakeLists\.txt ===$

@@ -6,25 +6,47 @@ This directory contains regression tests for the CTest test case generator (`--g
 
 Each test directory contains:
 - `main.c` - Source code to test
-- `test.desc` - Test descriptor (format compatible with ESBMC regression system)
+- `test.desc` - Test descriptor with regex patterns for generated file contents
+
+The `esbmc_ctest_wrapper.sh` script runs ESBMC and outputs generated file contents to stdout, allowing `testing_tool.py` to validate them using regex patterns.
 
 ## Running Tests
 
-### Quick Test (Shell Script)
+### Using CTest (Recommended)
+
+```bash
+# From build directory
+cd build
+
+# Run all CTest generation tests
+ctest -L ctest -j 8 --output-on-failure
+
+# Run specific test
+ctest -R regression/ctest/simple-int --output-on-failure
+
+# Run with verbose output
+ctest -L ctest -V
+```
+
+### Using testing_tool.py Directly
+
+```bash
+# From regression directory
+cd regression
+
+# Run all ctest tests
+python3 testing_tool.py --regression=ctest
+
+# Run specific test
+python3 testing_tool.py --regression=ctest --file=simple-int
+```
+
+### Standalone Shell Script (Legacy)
 
 ```bash
 # From this directory
 ./test_ctest_generation.sh
-
-# Or specify ESBMC path
-ESBMC=/path/to/esbmc ./test_ctest_generation.sh
 ```
-
-### Integration with ESBMC Testing Framework
-
-**Note**: Full integration requires extending `testing_tool.py` to support file content verification.
-
-See `CTEST_REGRESSION_TESTING.md` in repository root for implementation plan.
 
 ## Current Tests
 
