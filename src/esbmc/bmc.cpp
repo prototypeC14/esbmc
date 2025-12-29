@@ -101,7 +101,9 @@ bmct::bmct(goto_functionst &funcs, optionst &opts, contextt &_context)
   }
 }
 
-void bmct::successful_trace(const symex_target_equationt &eq [[maybe_unused]])
+void bmct::successful_trace(
+  smt_convt &smt_conv,
+  const symex_target_equationt &eq)
 {
   if (options.get_bool_option("result-only"))
     return;
@@ -118,6 +120,28 @@ void bmct::successful_trace(const symex_target_equationt &eq [[maybe_unused]])
 
   if (witness_yaml_output != "")
     correctness_yaml_goto_trace(options, ns, goto_trace);
+
+  // Generate test cases even for successful verification
+  // This allows generating test cases for coverage or correctness validation
+  if (options.get_bool_option("generate-testcase"))
+  {
+    generate_testcase_metadata();
+    generate_testcase("testcase.xml", eq, smt_conv);
+  }
+
+  if (options.get_bool_option("generate-pytest-testcase"))
+  {
+    std::string input_file = options.get_option("input-file");
+    std::string module_name = pytest_generator::extract_module_name(input_file);
+    std::string pytest_filename =
+      pytest_generator::generate_pytest_filename(module_name);
+    pytest_gen.generate_single(pytest_filename, eq, smt_conv, ns);
+  }
+
+  if (options.get_bool_option("generate-ctest-testcase"))
+  {
+    ctest_gen.generate_single(".", eq, smt_conv, ns);
+  }
 }
 
 void bmct::error_trace(smt_convt &smt_conv, const symex_target_equationt &eq)
@@ -384,7 +408,7 @@ void bmct::report_trace(
     }
     else if (!bs)
     {
-      successful_trace(eq);
+      successful_trace(*runtime_solver, eq);
     }
     break;
 
