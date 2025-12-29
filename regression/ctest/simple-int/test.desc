@@ -2,11 +2,11 @@ CORE
 test.sh
 
 ^=== BEGIN test_case\.c ===$
-int __VERIFIER_nondet_int\(void\)
-static const int v\[\]
-return v\[i\+\+\]
+^int __VERIFIER_nondet_int\(void\)
+^  static const int v\[\]
+^  return v\[i\+\+\]
 ^=== END test_case\.c ===$
 ^=== BEGIN CMakeLists\.txt ===$
-cmake_minimum_required
-add_executable
+^cmake_minimum_required
+^add_executable
 ^=== END CMakeLists\.txt ===$
