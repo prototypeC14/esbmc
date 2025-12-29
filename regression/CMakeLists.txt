@@ -65,31 +65,6 @@ function(add_esbmc_regression folder modes)
     endforeach()
 endfunction()
 
-# Special function for CTest generator tests
-# Uses wrapper script to output generated file contents
-function(add_ctest_regression_test folder modes test)
-    set(test_name "regression/${folder}/${test}")
-    set(WRAPPER_SCRIPT "${CMAKE_CURRENT_SOURCE_DIR}/${folder}/esbmc_ctest_wrapper.sh")
-    add_test(NAME ${test_name}
-             COMMAND ${Python_EXECUTABLE} ${ESBMC_REGRESSION_TOOL}
-                     --tool=${WRAPPER_SCRIPT}
-                     --regression=${CMAKE_CURRENT_SOURCE_DIR}/${folder}
-                     --modes ${modes}
-                     --file=${test}
-                     ${BENCHBRINGUP_ARGS})
-    set_tests_properties(${test_name}
-      PROPERTIES SKIP_RETURN_CODE 10
-      LABELS "regression;ctest;${folder}"
-      ENVIRONMENT "ESBMC_BIN=${ESBMC_BIN}")
-endfunction()
-
-function(add_ctest_regression folder modes)
-    SUBDIRLIST(SUBDIRS ${CMAKE_CURRENT_SOURCE_DIR}/${folder})
-    foreach(test ${SUBDIRS})
-        add_ctest_regression_test(${folder} "${modes}" ${test})
-    endforeach()
-endfunction()
-
 # conditionally enable regression suites based on configured support
 if(ENABLE_BITWUZLA)
     set(REGRESSIONS_BITWUZLA bitwuzla)
@@ -316,11 +291,5 @@ foreach(regression IN LISTS REGRESSIONS)
     if(CORE_REGRESSION_ONLY)
       set(MODES CORE)
     endif()
-
-    # Use special handler for CTest generator tests
-    if(regression STREQUAL "ctest")
-        add_ctest_regression("${regression}" "${MODES}")
-    else()
-        add_esbmc_regression("${regression}" "${MODES}")
-    endif()
+    add_esbmc_regression("${regression}" "${MODES}")
 endforeach()

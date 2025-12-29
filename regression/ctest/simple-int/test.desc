@@ -1,7 +1,6 @@
 CORE
-main.c
---generate-ctest-testcase
-^=== ESBMC CTest Generation Output ===$
+test.sh
+
 ^=== BEGIN test_case\.c ===$
 int __VERIFIER_nondet_int\(void\)
 static const int v\[\]
