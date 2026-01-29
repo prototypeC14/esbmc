@@ -831,38 +831,45 @@ void pytest_generator::collect(
     }
   }
 
+  // Determine if we're building a dict (has dict components)
+  // If so, skip list building because list_sizes are internal to dict construction
+  bool has_dict_components = !dict_keys.empty() || !dict_values.empty();
+
   // Build composite list values from collected size and element values
   // Each (size, elem) pair creates a list: [elem] * size
-  for (size_t i = 0; i < list_sizes.size() && i < list_elems.size(); ++i)
+  // Skip if we have dict components - the sizes are for the dict, not a separate list
+  if (!has_dict_components)
   {
-    BigInt size = list_sizes[i].second;
-    const std::string &elem = list_elems[i].second;
-
-    // Build Python list representation
-    std::string list_str = "[";
-    int64_t size_val = size.to_int64();
-    if (size_val < 0)
-      size_val = 0;
-    if (size_val > 100)
-      size_val = 100; // Cap at reasonable size
-
-    for (int64_t j = 0; j < size_val; ++j)
+    for (size_t i = 0; i < list_sizes.size() && i < list_elems.size(); ++i)
     {
-      if (j > 0)
-        list_str += ", ";
-      list_str += elem;
-    }
-    list_str += "]";
+      BigInt size = list_sizes[i].second;
+      const std::string &elem = list_elems[i].second;
 
-    // Use "list" + index as parameter name
-    std::string param_name = "list" + std::to_string(i);
-    current_params.push_back(list_str);
-    current_param_names.push_back(param_name);
+      // Build Python list representation
+      std::string list_str = "[";
+      int64_t size_val = size.to_int64();
+      if (size_val < 0)
+        size_val = 0;
+      if (size_val > 100)
+        size_val = 100; // Cap at reasonable size
+
+      for (int64_t j = 0; j < size_val; ++j)
+      {
+        if (j > 0)
+          list_str += ", ";
+        list_str += elem;
+      }
+      list_str += "]";
+
+      // Use "list" + index as parameter name
+      std::string param_name = "list" + std::to_string(i);
+      current_params.push_back(list_str);
+      current_param_names.push_back(param_name);
+    }
   }
 
   // Build composite dict values from collected key and value values
   // Note: nondet_dict in Python generates only ONE key-value pair (same key/value repeated)
-  bool built_dict = false;
   if (!dict_keys.empty())
   {
     // Use value if available, otherwise use key as value (they often share the same nondet)
@@ -872,7 +879,6 @@ void pytest_generator::collect(
     std::string dict_str = "{" + key_val + ": " + value_val + "}";
     current_params.push_back(dict_str);
     current_param_names.push_back("dict0");
-    built_dict = true;
   }
   else if (!dict_values.empty())
   {
@@ -880,12 +886,11 @@ void pytest_generator::collect(
     std::string dict_str = "{" + dict_values[0].second + ": " + dict_values[0].second + "}";
     current_params.push_back(dict_str);
     current_param_names.push_back("dict0");
-    built_dict = true;
   }
 
   // Handle orphan list sizes (build list with default element 0)
-  // Skip if we built a dict - the sizes are likely from _nondet_size for the dict, not a separate list
-  if (!built_dict)
+  // Skip if we have dict components - the sizes are from _nondet_size for the dict
+  if (!has_dict_components)
   {
     for (size_t i = list_elems.size(); i < list_sizes.size(); ++i)
     {
@@ -908,14 +913,14 @@ void pytest_generator::collect(
       current_params.push_back(list_str);
       current_param_names.push_back("list" + std::to_string(i));
     }
-  }
 
-  // Handle orphan list elems (build single-element list)
-  for (size_t i = list_sizes.size(); i < list_elems.size(); ++i)
-  {
-    std::string list_str = "[" + list_elems[i].second + "]";
-    current_params.push_back(list_str);
-    current_param_names.push_back("list" + std::to_string(i));
+    // Handle orphan list elems (build single-element list)
+    for (size_t i = list_sizes.size(); i < list_elems.size(); ++i)
+    {
+      std::string list_str = "[" + list_elems[i].second + "]";
+      current_params.push_back(list_str);
+      current_param_names.push_back("list" + std::to_string(i));
+    }
   }
 
   // Store collected data if we found any nondet values
@@ -1272,36 +1277,43 @@ void pytest_generator::generate_single(
     }
   }
 
+  // Determine if we're building a dict (has dict components)
+  // If so, skip list building because list_sizes are internal to dict construction
+  bool has_dict_components = !dict_keys.empty() || !dict_values.empty();
+
   // Build composite list values from collected size and element values
-  for (size_t i = 0; i < list_sizes.size() && i < list_elems.size(); ++i)
+  // Skip if we have dict components - the sizes are for the dict, not a separate list
+  if (!has_dict_components)
   {
-    BigInt size = list_sizes[i].second;
-    const std::string &elem = list_elems[i].second;
-
-    // Build Python list representation
-    std::string list_str = "[";
-    int64_t size_val = size.to_int64();
-    if (size_val < 0)
-      size_val = 0;
-    if (size_val > 100)
-      size_val = 100; // Cap at reasonable size
-
-    for (int64_t j = 0; j < size_val; ++j)
+    for (size_t i = 0; i < list_sizes.size() && i < list_elems.size(); ++i)
     {
-      if (j > 0)
-        list_str += ", ";
-      list_str += elem;
-    }
-    list_str += "]";
+      BigInt size = list_sizes[i].second;
+      const std::string &elem = list_elems[i].second;
 
-    std::string param_name = "list" + std::to_string(i);
-    current_params.push_back(list_str);
-    current_param_names.push_back(param_name);
+      // Build Python list representation
+      std::string list_str = "[";
+      int64_t size_val = size.to_int64();
+      if (size_val < 0)
+        size_val = 0;
+      if (size_val > 100)
+        size_val = 100; // Cap at reasonable size
+
+      for (int64_t j = 0; j < size_val; ++j)
+      {
+        if (j > 0)
+          list_str += ", ";
+        list_str += elem;
+      }
+      list_str += "]";
+
+      std::string param_name = "list" + std::to_string(i);
+      current_params.push_back(list_str);
+      current_param_names.push_back(param_name);
+    }
   }
 
   // Build composite dict values
   // Note: nondet_dict produces only ONE key-value pair
-  bool built_dict = false;
   if (!dict_keys.empty())
   {
     // Use value if available, otherwise use key as value (they often share the same nondet)
@@ -1311,7 +1323,6 @@ void pytest_generator::generate_single(
     std::string dict_str = "{" + key_val + ": " + value_val + "}";
     current_params.push_back(dict_str);
     current_param_names.push_back("dict0");
-    built_dict = true;
   }
   else if (!dict_values.empty())
   {
@@ -1319,12 +1330,11 @@ void pytest_generator::generate_single(
     std::string dict_str = "{" + dict_values[0].second + ": " + dict_values[0].second + "}";
     current_params.push_back(dict_str);
     current_param_names.push_back("dict0");
-    built_dict = true;
   }
 
   // Handle orphan list sizes (build list with default element 0)
-  // Skip if we built a dict - the sizes are likely from _nondet_size for the dict, not a separate list
-  if (!built_dict)
+  // Skip if we have dict components - the sizes are from _nondet_size for the dict
+  if (!has_dict_components)
   {
     for (size_t i = list_elems.size(); i < list_sizes.size(); ++i)
     {
@@ -1347,14 +1357,14 @@ void pytest_generator::generate_single(
       current_params.push_back(list_str);
       current_param_names.push_back("list" + std::to_string(i));
     }
-  }
 
-  // Handle orphan list elems (build single-element list)
-  for (size_t i = list_sizes.size(); i < list_elems.size(); ++i)
-  {
-    std::string list_str = "[" + list_elems[i].second + "]";
-    current_params.push_back(list_str);
-    current_param_names.push_back("list" + std::to_string(i));
+    // Handle orphan list elems (build single-element list)
+    for (size_t i = list_sizes.size(); i < list_elems.size(); ++i)
+    {
+      std::string list_str = "[" + list_elems[i].second + "]";
+      current_params.push_back(list_str);
+      current_param_names.push_back("list" + std::to_string(i));
+    }
   }
 
   // If no nondets found, nothing to generate
