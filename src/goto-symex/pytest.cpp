@@ -662,6 +662,7 @@ void pytest_generator::collect(
         }
 
         // Track the role of internal variables
+        // Check based on function context first
         if (in_nondet_size && var_name == "size")
         {
           is_list_size = true;
@@ -688,6 +689,20 @@ void pytest_generator::collect(
         {
           continue;
         }
+      }
+
+      // Also check variable names outside internal functions
+      // This handles cases where user passes nondet_int() as argument:
+      // e.g., nondet_dict(2, key_type=nondet_int(), value_type=nondet_int())
+      // In this case, the nondet assignment happens in user code, not in nondet_dict
+      if (!is_list_size && !is_list_elem && !is_dict_key && !is_dict_value)
+      {
+        if (var_name == "key_type")
+          is_dict_key = true;
+        else if (var_name == "value_type")
+          is_dict_value = true;
+        else if (var_name == "elem_type")
+          is_list_elem = true;
       }
 
       // Check if this is a nondet assignment
@@ -1070,6 +1085,18 @@ void pytest_generator::generate_single(
         {
           continue;
         }
+      }
+
+      // Also check variable names outside internal functions
+      // This handles cases where user passes nondet_int() as argument
+      if (!is_list_size && !is_list_elem && !is_dict_key && !is_dict_value)
+      {
+        if (var_name == "key_type")
+          is_dict_key = true;
+        else if (var_name == "value_type")
+          is_dict_value = true;
+        else if (var_name == "elem_type")
+          is_list_elem = true;
       }
 
       // Check if this is a nondet assignment
