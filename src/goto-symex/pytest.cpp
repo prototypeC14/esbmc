@@ -862,46 +862,53 @@ void pytest_generator::collect(
 
   // Build composite dict values from collected key and value values
   // Note: nondet_dict in Python generates only ONE key-value pair (same key/value repeated)
-  // So we just need one key and one value, not multiple pairs
-  if (!dict_keys.empty() && !dict_values.empty())
+  if (!dict_keys.empty())
   {
-    // nondet_dict always produces a single-entry dict {key: value}
-    // because the same key_type and value_type are used in every loop iteration
-    std::string dict_str = "{";
-    dict_str += dict_keys[0].second + ": " + dict_values[0].second;
-    dict_str += "}";
+    // Use value if available, otherwise use key as value (they often share the same nondet)
+    std::string key_val = dict_keys[0].second;
+    std::string value_val = !dict_values.empty() ? dict_values[0].second : key_val;
 
+    std::string dict_str = "{" + key_val + ": " + value_val + "}";
     current_params.push_back(dict_str);
     current_param_names.push_back("dict0");
   }
-  else
+  else if (!dict_values.empty())
   {
-    // Fallback: if only partial dict components collected, add them as regular params
-    // This handles cases where detection was incomplete
-    for (size_t i = 0; i < dict_keys.size(); ++i)
-    {
-      current_params.push_back(dict_keys[i].second);
-      current_param_names.push_back("key" + std::to_string(i));
-    }
-    for (size_t i = 0; i < dict_values.size(); ++i)
-    {
-      current_params.push_back(dict_values[i].second);
-      current_param_names.push_back("value" + std::to_string(i));
-    }
+    // Only values, no keys - use value as key too
+    std::string dict_str = "{" + dict_values[0].second + ": " + dict_values[0].second + "}";
+    current_params.push_back(dict_str);
+    current_param_names.push_back("dict0");
   }
 
-  // Fallback: if only partial list components collected, add them as regular params
-  // Handle extra sizes (more sizes than elems)
+  // Handle orphan list sizes (build list with default element 0)
   for (size_t i = list_elems.size(); i < list_sizes.size(); ++i)
   {
-    current_params.push_back(integer2string(list_sizes[i].second));
-    current_param_names.push_back("size" + std::to_string(i));
+    BigInt size = list_sizes[i].second;
+    int64_t size_val = size.to_int64();
+    if (size_val < 0)
+      size_val = 0;
+    if (size_val > 100)
+      size_val = 100;
+
+    std::string list_str = "[";
+    for (int64_t j = 0; j < size_val; ++j)
+    {
+      if (j > 0)
+        list_str += ", ";
+      list_str += "0"; // default element
+    }
+    list_str += "]";
+
+    current_params.push_back(list_str);
+    current_param_names.push_back("list" + std::to_string(i));
   }
-  // Handle extra elems (more elems than sizes)
+
+  // Handle orphan list elems (build single-element list)
   for (size_t i = list_sizes.size(); i < list_elems.size(); ++i)
   {
-    current_params.push_back(list_elems[i].second);
-    current_param_names.push_back("elem" + std::to_string(i));
+    std::string list_str = "[" + list_elems[i].second + "]";
+    current_params.push_back(list_str);
+    current_param_names.push_back("list" + std::to_string(i));
   }
 
   // Store collected data if we found any nondet values
@@ -1287,40 +1294,53 @@ void pytest_generator::generate_single(
 
   // Build composite dict values
   // Note: nondet_dict produces only ONE key-value pair
-  if (!dict_keys.empty() && !dict_values.empty())
+  if (!dict_keys.empty())
   {
-    std::string dict_str = "{";
-    dict_str += dict_keys[0].second + ": " + dict_values[0].second;
-    dict_str += "}";
+    // Use value if available, otherwise use key as value (they often share the same nondet)
+    std::string key_val = dict_keys[0].second;
+    std::string value_val = !dict_values.empty() ? dict_values[0].second : key_val;
 
+    std::string dict_str = "{" + key_val + ": " + value_val + "}";
     current_params.push_back(dict_str);
     current_param_names.push_back("dict0");
   }
-  else
+  else if (!dict_values.empty())
   {
-    // Fallback: if only partial dict components collected, add them as regular params
-    for (size_t i = 0; i < dict_keys.size(); ++i)
-    {
-      current_params.push_back(dict_keys[i].second);
-      current_param_names.push_back("key" + std::to_string(i));
-    }
-    for (size_t i = 0; i < dict_values.size(); ++i)
-    {
-      current_params.push_back(dict_values[i].second);
-      current_param_names.push_back("value" + std::to_string(i));
-    }
+    // Only values, no keys - use value as key too
+    std::string dict_str = "{" + dict_values[0].second + ": " + dict_values[0].second + "}";
+    current_params.push_back(dict_str);
+    current_param_names.push_back("dict0");
   }
 
-  // Fallback: if only partial list components collected, add them as regular params
+  // Handle orphan list sizes (build list with default element 0)
   for (size_t i = list_elems.size(); i < list_sizes.size(); ++i)
   {
-    current_params.push_back(integer2string(list_sizes[i].second));
-    current_param_names.push_back("size" + std::to_string(i));
+    BigInt size = list_sizes[i].second;
+    int64_t size_val = size.to_int64();
+    if (size_val < 0)
+      size_val = 0;
+    if (size_val > 100)
+      size_val = 100;
+
+    std::string list_str = "[";
+    for (int64_t j = 0; j < size_val; ++j)
+    {
+      if (j > 0)
+        list_str += ", ";
+      list_str += "0"; // default element
+    }
+    list_str += "]";
+
+    current_params.push_back(list_str);
+    current_param_names.push_back("list" + std::to_string(i));
   }
+
+  // Handle orphan list elems (build single-element list)
   for (size_t i = list_sizes.size(); i < list_elems.size(); ++i)
   {
-    current_params.push_back(list_elems[i].second);
-    current_param_names.push_back("elem" + std::to_string(i));
+    std::string list_str = "[" + list_elems[i].second + "]";
+    current_params.push_back(list_str);
+    current_param_names.push_back("list" + std::to_string(i));
   }
 
   // If no nondets found, nothing to generate
