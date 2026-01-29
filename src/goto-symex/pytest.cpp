@@ -867,6 +867,35 @@ void pytest_generator::collect(
     current_params.push_back(dict_str);
     current_param_names.push_back("dict0");
   }
+  else
+  {
+    // Fallback: if only partial dict components collected, add them as regular params
+    // This handles cases where detection was incomplete
+    for (size_t i = 0; i < dict_keys.size(); ++i)
+    {
+      current_params.push_back(dict_keys[i].second);
+      current_param_names.push_back("key" + std::to_string(i));
+    }
+    for (size_t i = 0; i < dict_values.size(); ++i)
+    {
+      current_params.push_back(dict_values[i].second);
+      current_param_names.push_back("value" + std::to_string(i));
+    }
+  }
+
+  // Fallback: if only partial list components collected, add them as regular params
+  // Handle extra sizes (more sizes than elems)
+  for (size_t i = list_elems.size(); i < list_sizes.size(); ++i)
+  {
+    current_params.push_back(integer2string(list_sizes[i].second));
+    current_param_names.push_back("size" + std::to_string(i));
+  }
+  // Handle extra elems (more elems than sizes)
+  for (size_t i = list_sizes.size(); i < list_elems.size(); ++i)
+  {
+    current_params.push_back(list_elems[i].second);
+    current_param_names.push_back("elem" + std::to_string(i));
+  }
 
   // Store collected data if we found any nondet values
   if (!current_params.empty())
@@ -1255,6 +1284,32 @@ void pytest_generator::generate_single(
 
     current_params.push_back(dict_str);
     current_param_names.push_back("dict0");
+  }
+  else
+  {
+    // Fallback: if only partial dict components collected, add them as regular params
+    for (size_t i = 0; i < dict_keys.size(); ++i)
+    {
+      current_params.push_back(dict_keys[i].second);
+      current_param_names.push_back("key" + std::to_string(i));
+    }
+    for (size_t i = 0; i < dict_values.size(); ++i)
+    {
+      current_params.push_back(dict_values[i].second);
+      current_param_names.push_back("value" + std::to_string(i));
+    }
+  }
+
+  // Fallback: if only partial list components collected, add them as regular params
+  for (size_t i = list_elems.size(); i < list_sizes.size(); ++i)
+  {
+    current_params.push_back(integer2string(list_sizes[i].second));
+    current_param_names.push_back("size" + std::to_string(i));
+  }
+  for (size_t i = list_sizes.size(); i < list_elems.size(); ++i)
+  {
+    current_params.push_back(list_elems[i].second);
+    current_param_names.push_back("elem" + std::to_string(i));
   }
 
   // If no nondets found, nothing to generate
