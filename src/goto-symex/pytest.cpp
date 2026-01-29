@@ -714,11 +714,18 @@ void pytest_generator::collect(
       if (!has_prefix(sym.thename.as_string(), "nondet$"))
         continue;
 
-      if (seen_nondets.count(sym.thename.as_string()))
+      // For dict/list components, allow duplicate nondet symbols
+      // (key_type and value_type may share the same nondet symbol due to solver optimization)
+      bool is_component = is_list_size || is_list_elem || is_dict_key || is_dict_value;
+
+      if (seen_nondets.count(sym.thename.as_string()) && !is_component)
         continue;
 
-      seen_nondets.insert(sym.thename.as_string());
-      found_nondets++;
+      if (!seen_nondets.count(sym.thename.as_string()))
+      {
+        seen_nondets.insert(sym.thename.as_string());
+        found_nondets++;
+      }
 
       // Get concrete value
       auto concrete_value = smt_conv.get(nondet_expr);
@@ -1137,11 +1144,15 @@ void pytest_generator::generate_single(
       if (!has_prefix(sym.thename.as_string(), "nondet$"))
         continue;
 
-      // Skip if we've already processed this nondet symbol
-      if (seen_nondets.count(sym.thename.as_string()))
+      // For dict/list components, allow duplicate nondet symbols
+      // (key_type and value_type may share the same nondet symbol due to solver optimization)
+      bool is_component = is_list_size || is_list_elem || is_dict_key || is_dict_value;
+
+      if (seen_nondets.count(sym.thename.as_string()) && !is_component)
         continue;
 
-      seen_nondets.insert(sym.thename.as_string());
+      if (!seen_nondets.count(sym.thename.as_string()))
+        seen_nondets.insert(sym.thename.as_string());
 
       // Get the concrete value from the solver
       auto concrete_value = smt_conv.get(nondet_expr);
