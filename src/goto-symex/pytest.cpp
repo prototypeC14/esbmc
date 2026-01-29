@@ -862,6 +862,7 @@ void pytest_generator::collect(
 
   // Build composite dict values from collected key and value values
   // Note: nondet_dict in Python generates only ONE key-value pair (same key/value repeated)
+  bool built_dict = false;
   if (!dict_keys.empty())
   {
     // Use value if available, otherwise use key as value (they often share the same nondet)
@@ -871,6 +872,7 @@ void pytest_generator::collect(
     std::string dict_str = "{" + key_val + ": " + value_val + "}";
     current_params.push_back(dict_str);
     current_param_names.push_back("dict0");
+    built_dict = true;
   }
   else if (!dict_values.empty())
   {
@@ -878,29 +880,34 @@ void pytest_generator::collect(
     std::string dict_str = "{" + dict_values[0].second + ": " + dict_values[0].second + "}";
     current_params.push_back(dict_str);
     current_param_names.push_back("dict0");
+    built_dict = true;
   }
 
   // Handle orphan list sizes (build list with default element 0)
-  for (size_t i = list_elems.size(); i < list_sizes.size(); ++i)
+  // Skip if we built a dict - the sizes are likely from _nondet_size for the dict, not a separate list
+  if (!built_dict)
   {
-    BigInt size = list_sizes[i].second;
-    int64_t size_val = size.to_int64();
-    if (size_val < 0)
-      size_val = 0;
-    if (size_val > 100)
-      size_val = 100;
-
-    std::string list_str = "[";
-    for (int64_t j = 0; j < size_val; ++j)
+    for (size_t i = list_elems.size(); i < list_sizes.size(); ++i)
     {
-      if (j > 0)
-        list_str += ", ";
-      list_str += "0"; // default element
-    }
-    list_str += "]";
+      BigInt size = list_sizes[i].second;
+      int64_t size_val = size.to_int64();
+      if (size_val < 0)
+        size_val = 0;
+      if (size_val > 100)
+        size_val = 100;
 
-    current_params.push_back(list_str);
-    current_param_names.push_back("list" + std::to_string(i));
+      std::string list_str = "[";
+      for (int64_t j = 0; j < size_val; ++j)
+      {
+        if (j > 0)
+          list_str += ", ";
+        list_str += "0"; // default element
+      }
+      list_str += "]";
+
+      current_params.push_back(list_str);
+      current_param_names.push_back("list" + std::to_string(i));
+    }
   }
 
   // Handle orphan list elems (build single-element list)
@@ -1294,6 +1301,7 @@ void pytest_generator::generate_single(
 
   // Build composite dict values
   // Note: nondet_dict produces only ONE key-value pair
+  bool built_dict = false;
   if (!dict_keys.empty())
   {
     // Use value if available, otherwise use key as value (they often share the same nondet)
@@ -1303,6 +1311,7 @@ void pytest_generator::generate_single(
     std::string dict_str = "{" + key_val + ": " + value_val + "}";
     current_params.push_back(dict_str);
     current_param_names.push_back("dict0");
+    built_dict = true;
   }
   else if (!dict_values.empty())
   {
@@ -1310,29 +1319,34 @@ void pytest_generator::generate_single(
     std::string dict_str = "{" + dict_values[0].second + ": " + dict_values[0].second + "}";
     current_params.push_back(dict_str);
     current_param_names.push_back("dict0");
+    built_dict = true;
   }
 
   // Handle orphan list sizes (build list with default element 0)
-  for (size_t i = list_elems.size(); i < list_sizes.size(); ++i)
+  // Skip if we built a dict - the sizes are likely from _nondet_size for the dict, not a separate list
+  if (!built_dict)
   {
-    BigInt size = list_sizes[i].second;
-    int64_t size_val = size.to_int64();
-    if (size_val < 0)
-      size_val = 0;
-    if (size_val > 100)
-      size_val = 100;
-
-    std::string list_str = "[";
-    for (int64_t j = 0; j < size_val; ++j)
+    for (size_t i = list_elems.size(); i < list_sizes.size(); ++i)
     {
-      if (j > 0)
-        list_str += ", ";
-      list_str += "0"; // default element
-    }
-    list_str += "]";
+      BigInt size = list_sizes[i].second;
+      int64_t size_val = size.to_int64();
+      if (size_val < 0)
+        size_val = 0;
+      if (size_val > 100)
+        size_val = 100;
 
-    current_params.push_back(list_str);
-    current_param_names.push_back("list" + std::to_string(i));
+      std::string list_str = "[";
+      for (int64_t j = 0; j < size_val; ++j)
+      {
+        if (j > 0)
+          list_str += ", ";
+        list_str += "0"; // default element
+      }
+      list_str += "]";
+
+      current_params.push_back(list_str);
+      current_param_names.push_back("list" + std::to_string(i));
+    }
   }
 
   // Handle orphan list elems (build single-element list)
