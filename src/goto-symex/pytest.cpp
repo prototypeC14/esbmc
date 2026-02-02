@@ -869,21 +869,37 @@ void pytest_generator::collect(
   }
 
   // Build composite dict values from collected key and value values
-  // Note: nondet_dict in Python generates only ONE key-value pair (same key/value repeated)
-  if (!dict_keys.empty())
+  // nondet_dict now generates unique key/value per iteration
+  if (!dict_keys.empty() || !dict_values.empty())
   {
-    // Use value if available, otherwise use key as value (they often share the same nondet)
-    std::string key_val = dict_keys[0].second;
-    std::string value_val = !dict_values.empty() ? dict_values[0].second : key_val;
+    std::string dict_str = "{";
+    size_t num_entries = std::max(dict_keys.size(), dict_values.size());
 
-    std::string dict_str = "{" + key_val + ": " + value_val + "}";
-    current_params.push_back(dict_str);
-    current_param_names.push_back("dict0");
-  }
-  else if (!dict_values.empty())
-  {
-    // Only values, no keys - use value as key too
-    std::string dict_str = "{" + dict_values[0].second + ": " + dict_values[0].second + "}";
+    for (size_t i = 0; i < num_entries; ++i)
+    {
+      if (i > 0)
+        dict_str += ", ";
+
+      // Get key (use index as fallback if not enough keys)
+      std::string key_val;
+      if (i < dict_keys.size())
+        key_val = dict_keys[i].second;
+      else
+        key_val = std::to_string(i);
+
+      // Get value (use key as fallback if not enough values)
+      std::string value_val;
+      if (i < dict_values.size())
+        value_val = dict_values[i].second;
+      else if (i < dict_keys.size())
+        value_val = dict_keys[i].second;
+      else
+        value_val = "0";
+
+      dict_str += key_val + ": " + value_val;
+    }
+    dict_str += "}";
+
     current_params.push_back(dict_str);
     current_param_names.push_back("dict0");
   }
@@ -1312,22 +1328,38 @@ void pytest_generator::generate_single(
     }
   }
 
-  // Build composite dict values
-  // Note: nondet_dict produces only ONE key-value pair
-  if (!dict_keys.empty())
+  // Build composite dict values from collected key and value values
+  // nondet_dict now generates unique key/value per iteration
+  if (!dict_keys.empty() || !dict_values.empty())
   {
-    // Use value if available, otherwise use key as value (they often share the same nondet)
-    std::string key_val = dict_keys[0].second;
-    std::string value_val = !dict_values.empty() ? dict_values[0].second : key_val;
+    std::string dict_str = "{";
+    size_t num_entries = std::max(dict_keys.size(), dict_values.size());
 
-    std::string dict_str = "{" + key_val + ": " + value_val + "}";
-    current_params.push_back(dict_str);
-    current_param_names.push_back("dict0");
-  }
-  else if (!dict_values.empty())
-  {
-    // Only values, no keys - use value as key too
-    std::string dict_str = "{" + dict_values[0].second + ": " + dict_values[0].second + "}";
+    for (size_t i = 0; i < num_entries; ++i)
+    {
+      if (i > 0)
+        dict_str += ", ";
+
+      // Get key (use index as fallback if not enough keys)
+      std::string key_val;
+      if (i < dict_keys.size())
+        key_val = dict_keys[i].second;
+      else
+        key_val = std::to_string(i);
+
+      // Get value (use key as fallback if not enough values)
+      std::string value_val;
+      if (i < dict_values.size())
+        value_val = dict_values[i].second;
+      else if (i < dict_keys.size())
+        value_val = dict_keys[i].second;
+      else
+        value_val = "0";
+
+      dict_str += key_val + ": " + value_val;
+    }
+    dict_str += "}";
+
     current_params.push_back(dict_str);
     current_param_names.push_back("dict0");
   }
