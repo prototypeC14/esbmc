@@ -40,26 +40,23 @@ def _nondet_size(max_size: int) -> int:
 def nondet_list(max_size: int = _DEFAULT_NONDET_SIZE, elem_type: Any = None) -> list:
     """
     Return a non-deterministic list with specified element type.
-    
+
     Args:
         max_size: Maximum size of the list (default: 8).
                   The actual size will be in range [0, max_size].
-        elem_type: Value returned by type constructor for list elements (default: nondet_int()).
-                   Supported: nondet_int(), nondet_float(), nondet_bool(), nondet_str()
-    
-    Returns:
-        list: A list with arbitrary size and contents of specified type.
-    """
-    # Default to nondet_int if no type specified
-    if elem_type is None:
-        elem_type = nondet_int()
+        elem_type: Ignored (kept for API compatibility). Each element is nondet_int().
 
+    Returns:
+        list: A list with arbitrary size and nondet int contents.
+    """
     result: list = []
     size: int = _nondet_size(max_size)
 
     i: int = 0
     while i < size:
-        result.append(elem_type)
+        # Generate a NEW nondet element for each iteration
+        elem: int = nondet_int()
+        result.append(elem)
         i = i + 1
 
     return result
@@ -74,32 +71,25 @@ def nondet_dict(max_size: int = _DEFAULT_NONDET_SIZE,
     Args:
         max_size: Maximum size of the dictionary (default: 8).
                   The actual size will be in range [0, max_size].
-        key_type: Value returned by type constructor for dictionary keys (default: nondet_int()).
-                  Supported: nondet_int(), nondet_str(), nondet_bool()
-        value_type: Value returned by type constructor for dictionary values (default: nondet_int()).
-                    Supported: nondet_int(), nondet_float(), nondet_bool(), nondet_str()
+        key_type: Ignored (kept for API compatibility). Each key is nondet_int().
+        value_type: Ignored (kept for API compatibility). Each value is nondet_int().
 
     Returns:
-        dict: A dictionary with arbitrary size and contents of specified types.
+        dict: A dictionary with arbitrary size and nondet int keys/values.
 
     Examples:
-        d = nondet_dict()                    # int->int dict, size [0, 8]
-        d = nondet_dict(5)                   # int->int dict, size [0, 5]
-        d = nondet_dict(key_type=nondet_str(), value_type=nondet_float())
-        d = nondet_dict(max_size=10, key_type=nondet_int(), value_type=nondet_bool())
+        d = nondet_dict()      # int->int dict, size [0, 8]
+        d = nondet_dict(5)     # int->int dict, size [0, 5]
     """
-    # Default to nondet_int if no types specified
-    if key_type is None:
-        key_type = nondet_int()
-    if value_type is None:
-        value_type = nondet_int()
-
     result: dict = {}
     size: int = _nondet_size(max_size)
 
     i: int = 0
     while i < size:
-        result[key_type] = value_type
+        # Generate NEW nondet key and value for each iteration
+        key: int = nondet_int()
+        value: int = nondet_int()
+        result[key] = value
         i = i + 1
 
     return result
