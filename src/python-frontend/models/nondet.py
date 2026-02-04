@@ -56,26 +56,21 @@ def nondet_list(max_size: int = _DEFAULT_NONDET_SIZE, elem_type: Any = None) -> 
         x = nondet_list(elem_type=nondet_float())            # float list, size [0, 8]
         x = nondet_list(max_size=10, elem_type=nondet_bool())# bool list, size [0, 10]
     """
-    # Determine element type from passed value
-    use_float: bool = isinstance(elem_type, float)
-    use_bool: bool = isinstance(elem_type, bool)
-    use_str: bool = isinstance(elem_type, str)
-
     result: list = []
     size: int = _nondet_size(max_size)
 
     i: int = 0
     while i < size:
-        # Generate a NEW nondet element of the same type each iteration
-        if use_float:
-            elem = nondet_float()
-        elif use_bool:
-            elem = nondet_bool()
-        elif use_str:
-            elem = nondet_str()
+        if elem_type is None or type(elem_type) == int:
+            result.append(nondet_int())
+        elif type(elem_type) == float:
+            result.append(nondet_float())
+        elif type(elem_type) == bool:
+            result.append(nondet_bool())
+        elif type(elem_type) == str:
+            result.append(nondet_str())
         else:
-            elem = nondet_int()
-        result.append(elem)
+            result.append(nondet_int())
         i = i + 1
 
     return result
@@ -104,39 +99,34 @@ def nondet_dict(max_size: int = _DEFAULT_NONDET_SIZE,
         d = nondet_dict(key_type=nondet_str(), value_type=nondet_float())
         d = nondet_dict(max_size=10, key_type=nondet_int(), value_type=nondet_bool())
     """
-    # Determine key type from passed value
-    key_is_str: bool = isinstance(key_type, str)
-    key_is_bool: bool = isinstance(key_type, bool)
-
-    # Determine value type from passed value
-    val_is_float: bool = isinstance(value_type, float)
-    val_is_bool: bool = isinstance(value_type, bool)
-    val_is_str: bool = isinstance(value_type, str)
-
     result: dict = {}
     size: int = _nondet_size(max_size)
 
     i: int = 0
     while i < size:
-        # Generate NEW nondet key of the same type each iteration
-        if key_is_str:
-            key = nondet_str()
-        elif key_is_bool:
-            key = nondet_bool()
+        # Generate new key each iteration
+        if key_type is None or type(key_type) == int:
+            k: Any = nondet_int()
+        elif type(key_type) == str:
+            k: Any = nondet_str()
+        elif type(key_type) == bool:
+            k: Any = nondet_bool()
         else:
-            key = nondet_int()
+            k: Any = nondet_int()
 
-        # Generate NEW nondet value of the same type each iteration
-        if val_is_float:
-            value = nondet_float()
-        elif val_is_bool:
-            value = nondet_bool()
-        elif val_is_str:
-            value = nondet_str()
+        # Generate new value each iteration
+        if value_type is None or type(value_type) == int:
+            v: Any = nondet_int()
+        elif type(value_type) == float:
+            v: Any = nondet_float()
+        elif type(value_type) == bool:
+            v: Any = nondet_bool()
+        elif type(value_type) == str:
+            v: Any = nondet_str()
         else:
-            value = nondet_int()
+            v: Any = nondet_int()
 
-        result[key] = value
+        result[k] = v
         i = i + 1
 
     return result
