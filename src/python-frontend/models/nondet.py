@@ -44,18 +44,39 @@ def nondet_list(max_size: int = _DEFAULT_NONDET_SIZE, elem_type: Any = None) -> 
     Args:
         max_size: Maximum size of the list (default: 8).
                   The actual size will be in range [0, max_size].
-        elem_type: Ignored (kept for API compatibility). Each element is nondet_int().
+        elem_type: Template value to determine element type (default: nondet_int()).
+                   Pass nondet_int(), nondet_float(), nondet_bool(), or nondet_str()
+                   to specify the type. A NEW nondet value of that type is generated
+                   for each element.
 
     Returns:
-        list: A list with arbitrary size and nondet int contents.
+        list: A list with arbitrary size and contents of specified type.
+
+    Examples:
+        x = nondet_list()                              # int list, size [0, 8]
+        x = nondet_list(5)                             # int list, size [0, 5]
+        x = nondet_list(elem_type=nondet_float())      # float list, size [0, 8]
+        x = nondet_list(max_size=10, elem_type=nondet_bool())  # bool list
     """
     result: list = []
     size: int = _nondet_size(max_size)
 
+    # Determine element type from template
+    use_float: bool = isinstance(elem_type, float)
+    use_bool: bool = isinstance(elem_type, bool)
+    use_str: bool = isinstance(elem_type, str)
+
     i: int = 0
     while i < size:
-        # Generate a NEW nondet element for each iteration
-        elem: int = nondet_int()
+        # Generate a NEW nondet element of the appropriate type for each iteration
+        if use_float:
+            elem = nondet_float()
+        elif use_bool:
+            elem = nondet_bool()
+        elif use_str:
+            elem = nondet_str()
+        else:
+            elem = nondet_int()
         result.append(elem)
         i = i + 1
 
@@ -71,24 +92,54 @@ def nondet_dict(max_size: int = _DEFAULT_NONDET_SIZE,
     Args:
         max_size: Maximum size of the dictionary (default: 8).
                   The actual size will be in range [0, max_size].
-        key_type: Ignored (kept for API compatibility). Each key is nondet_int().
-        value_type: Ignored (kept for API compatibility). Each value is nondet_int().
+        key_type: Template value to determine key type (default: nondet_int()).
+                  Pass nondet_int(), nondet_str(), or nondet_bool() to specify type.
+                  A NEW nondet value of that type is generated for each key.
+        value_type: Template value to determine value type (default: nondet_int()).
+                    Pass nondet_int(), nondet_float(), nondet_bool(), or nondet_str().
+                    A NEW nondet value of that type is generated for each value.
 
     Returns:
-        dict: A dictionary with arbitrary size and nondet int keys/values.
+        dict: A dictionary with arbitrary size and contents of specified types.
 
     Examples:
-        d = nondet_dict()      # int->int dict, size [0, 8]
-        d = nondet_dict(5)     # int->int dict, size [0, 5]
+        d = nondet_dict()                    # int->int dict, size [0, 8]
+        d = nondet_dict(5)                   # int->int dict, size [0, 5]
+        d = nondet_dict(key_type=nondet_str(), value_type=nondet_float())
+        d = nondet_dict(max_size=10, key_type=nondet_int(), value_type=nondet_bool())
     """
     result: dict = {}
     size: int = _nondet_size(max_size)
 
+    # Determine key type from template
+    key_is_str: bool = isinstance(key_type, str)
+    key_is_bool: bool = isinstance(key_type, bool)
+
+    # Determine value type from template
+    val_is_float: bool = isinstance(value_type, float)
+    val_is_bool: bool = isinstance(value_type, bool)
+    val_is_str: bool = isinstance(value_type, str)
+
     i: int = 0
     while i < size:
-        # Generate NEW nondet key and value for each iteration
-        key: int = nondet_int()
-        value: int = nondet_int()
+        # Generate NEW nondet key of the appropriate type
+        if key_is_str:
+            key = nondet_str()
+        elif key_is_bool:
+            key = nondet_bool()
+        else:
+            key = nondet_int()
+
+        # Generate NEW nondet value of the appropriate type
+        if val_is_float:
+            value = nondet_float()
+        elif val_is_bool:
+            value = nondet_bool()
+        elif val_is_str:
+            value = nondet_str()
+        else:
+            value = nondet_int()
+
         result[key] = value
         i = i + 1
 
