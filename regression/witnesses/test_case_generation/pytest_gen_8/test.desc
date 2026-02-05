@@ -1,0 +1,5 @@
+CORE
+main.py
+--branch-coverage --generate-pytest-testcase --unwind 7 --no-bounds-check --no-pointer-check --no-div-by-zero-check --no-align-check
+^Generated pytest test case
+^VERIFICATION FAILED$

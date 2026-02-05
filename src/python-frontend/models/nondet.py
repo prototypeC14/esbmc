@@ -7,7 +7,7 @@ USAGE:
     x = nondet_list(5)                                   # int list, size [0, 5]
     x = nondet_list(elem_type=nondet_float())                 # float list, size [0, 8]
     x = nondet_list(max_size=10, elem_type=nondet_bool())     # bool list, size [0, 10]
-    
+
     # Dictionaries:
     d = nondet_dict()                                    # int->int dict, size [0, 8]
     d = nondet_dict(5)                                   # int->int dict, size [0, 5]
@@ -61,16 +61,12 @@ def nondet_list(max_size: int = _DEFAULT_NONDET_SIZE, elem_type: Any = None) -> 
 
     i: int = 0
     while i < size:
-        if elem_type is None or type(elem_type) == int:
-            result.append(nondet_int())
-        elif type(elem_type) == float:
-            result.append(nondet_float())
-        elif type(elem_type) == bool:
-            result.append(nondet_bool())
-        elif type(elem_type) == str:
-            result.append(nondet_str())
+        if elem_type is None:
+            elem = nondet_int()
+            result.append(elem)
         else:
-            result.append(nondet_int())
+            elem = elem_type
+            result.append(elem)
         i = i + 1
 
     return result
@@ -104,27 +100,15 @@ def nondet_dict(max_size: int = _DEFAULT_NONDET_SIZE,
 
     i: int = 0
     while i < size:
-        # Generate new key each iteration
-        if key_type is None or type(key_type) == int:
-            k: Any = nondet_int()
-        elif type(key_type) == str:
-            k: Any = nondet_str()
-        elif type(key_type) == bool:
-            k: Any = nondet_bool()
+        if key_type is None:
+            k = nondet_int()
         else:
-            k: Any = nondet_int()
+            k = key_type
 
-        # Generate new value each iteration
-        if value_type is None or type(value_type) == int:
-            v: Any = nondet_int()
-        elif type(value_type) == float:
-            v: Any = nondet_float()
-        elif type(value_type) == bool:
-            v: Any = nondet_bool()
-        elif type(value_type) == str:
-            v: Any = nondet_str()
+        if value_type is None:
+            v = nondet_int()
         else:
-            v: Any = nondet_int()
+            v = value_type
 
         result[k] = v
         i = i + 1
