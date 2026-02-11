@@ -109,10 +109,15 @@ std::string pytest_generator::extract_function_name(
     "strcat",
     "memcpy",
     "memset",
+    "memmove",
     "malloc",
+    "calloc",
+    "realloc",
     "free",
     "printf",
     "scanf",
+    "sprintf",
+    "snprintf",
     "__ESBMC_main",
     "python_user_main",
     "python_init",
@@ -145,6 +150,7 @@ std::string pytest_generator::extract_function_name(
         has_prefix(full_func, "python_") || has_prefix(full_func, "__ESBMC_") ||
         has_prefix(full_func, "__VERIFIER_") ||
         has_prefix(func_to_check, "nondet_") ||
+        has_prefix(func_to_check, "__") ||  // Skip all double-underscore functions
         func_to_check == "_nondet_size")
         continue;
 
