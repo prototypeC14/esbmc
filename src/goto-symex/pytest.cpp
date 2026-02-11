@@ -559,7 +559,8 @@ void pytest_generator::write_test_data(
 void pytest_generator::write_test_function(
   std::ofstream &file,
   const std::string &func_name,
-  const std::vector<std::string> &param_names) const
+  const std::vector<std::string> &param_names,
+  const std::vector<std::pair<size_t, std::string>> &literal_args) const
 {
   std::string param_list = build_param_list(param_names);
 
@@ -568,8 +569,69 @@ void pytest_generator::write_test_function(
 
   if (!func_name.empty() && func_name != "coverage")
   {
-    // Generate actual function call
-    file << "    " << func_name << "(" << param_list << ")\n\n";
+    // Build function call with both nondet params and literal args
+    // Merge param_names and literal_args into a single ordered argument list
+    if (literal_args.empty())
+    {
+      // No literal args - just use param_list
+      file << "    " << func_name << "(" << param_list << ")\n\n";
+    }
+    else
+    {
+      // Merge nondet params and literal args by position
+      // First, determine total number of arguments
+      size_t max_pos = param_names.size();
+      for (const auto &lit : literal_args)
+      {
+        if (lit.first >= max_pos)
+          max_pos = lit.first + 1;
+      }
+
+      // Build argument list
+      std::vector<std::string> all_args(max_pos);
+
+      // Fill in nondet params (they go in order starting from position 0,
+      // skipping positions occupied by literals)
+      size_t nondet_idx = 0;
+      for (size_t pos = 0; pos < max_pos && nondet_idx < param_names.size(); ++pos)
+      {
+        // Check if this position has a literal
+        bool has_literal = false;
+        for (const auto &lit : literal_args)
+        {
+          if (lit.first == pos)
+          {
+            has_literal = true;
+            all_args[pos] = lit.second;
+            break;
+          }
+        }
+        if (!has_literal)
+        {
+          all_args[pos] = param_names[nondet_idx++];
+        }
+      }
+
+      // Fill in any remaining literals
+      for (const auto &lit : literal_args)
+      {
+        if (lit.first < max_pos && all_args[lit.first].empty())
+        {
+          all_args[lit.first] = lit.second;
+        }
+      }
+
+      // Build the call string
+      std::string call_args;
+      for (size_t i = 0; i < all_args.size(); ++i)
+      {
+        if (i > 0)
+          call_args += ", ";
+        call_args += all_args[i].empty() ? "None" : all_args[i];
+      }
+
+      file << "    " << func_name << "(" << call_args << ")\n\n";
+    }
   }
   else
   {
@@ -585,6 +647,7 @@ void pytest_generator::clear()
   test_cases.clear();
   param_names.clear();
   function_name.clear();
+  literal_args.clear();
 }
 
 void pytest_generator::collect(
@@ -601,6 +664,10 @@ void pytest_generator::collect(
   std::vector<std::pair<std::string, std::string>> list_elems; // (nondet_symbol, elem_value_str)
   std::vector<std::pair<std::string, std::string>> dict_keys;  // (nondet_symbol, key_value_str)
   std::vector<std::pair<std::string, std::string>> dict_values; // (nondet_symbol, value_value_str)
+
+  // Track literal (non-nondet) arguments with their positions
+  std::vector<std::pair<size_t, std::string>> local_literal_args;
+  size_t param_position = 0;
 
   // Extract function name if not already set
   std::string extracted_func_name;
@@ -711,12 +778,64 @@ void pytest_generator::collect(
 
       // Check if this is a nondet assignment
       auto nondet_expr = symex_slicet::get_nondet_symbol(SSA_step.rhs);
-      if (!nondet_expr || !is_symbol2t(nondet_expr))
+      bool is_nondet = nondet_expr && is_symbol2t(nondet_expr) &&
+                       has_prefix(to_symbol2t(nondet_expr).thename.as_string(), "nondet$");
+
+      // If not nondet, check for literal (constant) assignments in user function context
+      if (!is_nondet)
+      {
+        // Check if we're in the user function
+        if (SSA_step.source.pc->location.function() != "")
+        {
+          std::string step_func = SSA_step.source.pc->location.function().as_string();
+          std::string func_to_check = step_func;
+          if (has_prefix(func_to_check, "c::"))
+            func_to_check = func_to_check.substr(3);
+
+          // Get the user function name for comparison
+          std::string user_func = extracted_func_name.empty() ? function_name : extracted_func_name;
+
+          // Only capture literals in user function, not internal functions
+          bool in_user_func = (func_to_check == user_func);
+          bool in_internal = has_prefix(func_to_check, "nondet_") ||
+                            func_to_check == "_nondet_size" ||
+                            has_prefix(func_to_check, "__");
+
+          if (in_user_func && !in_internal && !var_name.empty())
+          {
+            // Check if RHS is a constant expression
+            std::string literal_value;
+            if (is_constant_string2t(SSA_step.rhs))
+            {
+              std::string raw_str = to_constant_string2t(SSA_step.rhs).value.as_string();
+              literal_value = "\"" + escape_python_string(raw_str) + "\"";
+            }
+            else if (is_constant_int2t(SSA_step.rhs))
+            {
+              literal_value = integer2string(to_constant_int2t(SSA_step.rhs).value);
+            }
+            else if (is_constant_bool2t(SSA_step.rhs))
+            {
+              literal_value = to_constant_bool2t(SSA_step.rhs).value ? "True" : "False";
+            }
+            else if (is_constant_floatbv2t(SSA_step.rhs))
+            {
+              literal_value = convert_float_to_python(
+                to_constant_floatbv2t(SSA_step.rhs).value.to_ansi_c_string());
+            }
+
+            if (!literal_value.empty())
+            {
+              // Store as literal argument at current position
+              local_literal_args.push_back({param_position, literal_value});
+              param_position++;
+            }
+          }
+        }
         continue;
+      }
 
       const symbol2t &sym = to_symbol2t(nondet_expr);
-      if (!has_prefix(sym.thename.as_string(), "nondet$"))
-        continue;
 
       // For dict/list components, allow duplicate nondet symbols
       // (key_type and value_type may share the same nondet symbol due to solver optimization)
@@ -832,6 +951,7 @@ void pytest_generator::collect(
 
       current_params.push_back(value_str);
       current_param_names.push_back(final_var_name);
+      param_position++; // Track position for nondet params too
     }
   }
 
@@ -1010,6 +1130,23 @@ void pytest_generator::collect(
     // Store function name if we found one
     if (!extracted_func_name.empty() && function_name.empty())
       function_name = extracted_func_name;
+
+    // Store literal args (merge with existing if any)
+    for (const auto &lit : local_literal_args)
+    {
+      // Check if this position already has a literal
+      bool found = false;
+      for (const auto &existing : literal_args)
+      {
+        if (existing.first == lit.first)
+        {
+          found = true;
+          break;
+        }
+      }
+      if (!found)
+        literal_args.push_back(lit);
+    }
   }
 }
 
@@ -1038,7 +1175,7 @@ void pytest_generator::generate(const std::string &file_name) const
   // Generate test function
   std::string test_func_name =
     function_name.empty() ? "coverage" : function_name;
-  write_test_function(pytest_file, test_func_name, param_names);
+  write_test_function(pytest_file, test_func_name, param_names, literal_args);
 
   pytest_file.close();
   log_status(
@@ -1077,6 +1214,10 @@ void pytest_generator::generate_single(
   std::vector<std::pair<std::string, std::string>> list_elems;
   std::vector<std::pair<std::string, std::string>> dict_keys;
   std::vector<std::pair<std::string, std::string>> dict_values;
+
+  // Track literal (non-nondet) arguments with their positions
+  std::vector<std::pair<size_t, std::string>> local_literal_args;
+  size_t param_position = 0;
 
   // Extract function name
   std::string func_name = extract_function_name(target, smt_conv);
@@ -1178,12 +1319,61 @@ void pytest_generator::generate_single(
 
       // Check if this is a nondet assignment
       auto nondet_expr = symex_slicet::get_nondet_symbol(SSA_step.rhs);
-      if (!nondet_expr || !is_symbol2t(nondet_expr))
+      bool is_nondet = nondet_expr && is_symbol2t(nondet_expr) &&
+                       has_prefix(to_symbol2t(nondet_expr).thename.as_string(), "nondet$");
+
+      // If not nondet, check for literal (constant) assignments in user function context
+      if (!is_nondet)
+      {
+        // Check if we're in the user function
+        if (SSA_step.source.pc->location.function() != "")
+        {
+          std::string step_func = SSA_step.source.pc->location.function().as_string();
+          std::string func_to_check = step_func;
+          if (has_prefix(func_to_check, "c::"))
+            func_to_check = func_to_check.substr(3);
+
+          // Only capture literals in user function, not internal functions
+          bool in_user_func = (func_to_check == func_name);
+          bool in_internal = has_prefix(func_to_check, "nondet_") ||
+                            func_to_check == "_nondet_size" ||
+                            has_prefix(func_to_check, "__");
+
+          if (in_user_func && !in_internal && !var_name.empty())
+          {
+            // Check if RHS is a constant expression
+            std::string literal_value;
+            if (is_constant_string2t(SSA_step.rhs))
+            {
+              std::string raw_str = to_constant_string2t(SSA_step.rhs).value.as_string();
+              literal_value = "\"" + escape_python_string(raw_str) + "\"";
+            }
+            else if (is_constant_int2t(SSA_step.rhs))
+            {
+              literal_value = integer2string(to_constant_int2t(SSA_step.rhs).value);
+            }
+            else if (is_constant_bool2t(SSA_step.rhs))
+            {
+              literal_value = to_constant_bool2t(SSA_step.rhs).value ? "True" : "False";
+            }
+            else if (is_constant_floatbv2t(SSA_step.rhs))
+            {
+              literal_value = convert_float_to_python(
+                to_constant_floatbv2t(SSA_step.rhs).value.to_ansi_c_string());
+            }
+
+            if (!literal_value.empty())
+            {
+              // Store as literal argument at current position
+              local_literal_args.push_back({param_position, literal_value});
+              param_position++;
+            }
+          }
+        }
         continue;
+      }
 
       const symbol2t &sym = to_symbol2t(nondet_expr);
-      if (!has_prefix(sym.thename.as_string(), "nondet$"))
-        continue;
 
       // For dict/list components, allow duplicate nondet symbols
       // (key_type and value_type may share the same nondet symbol due to solver optimization)
@@ -1296,6 +1486,7 @@ void pytest_generator::generate_single(
 
       current_params.push_back(value_str);
       current_param_names.push_back(final_var_name);
+      param_position++; // Track position for nondet params too
     }
   }
 
@@ -1425,7 +1616,7 @@ void pytest_generator::generate_single(
   // Convert single test case to format expected by write_test_data
   std::vector<std::vector<std::string>> test_data = {current_params};
   write_test_data(pytest_file, current_param_names, test_data);
-  write_test_function(pytest_file, func_name, current_param_names);
+  write_test_function(pytest_file, func_name, current_param_names, local_literal_args);
 
   pytest_file.close();
   log_status("Generated pytest test case: {}", file_name);

@@ -16,6 +16,8 @@ private:
   std::vector<std::vector<std::string>> test_cases;
   std::vector<std::string> param_names;
   std::string function_name;
+  // Literal arguments: (position, value) - for non-nondet args in function calls
+  std::vector<std::pair<size_t, std::string>> literal_args;
   mutable std::mutex data_mutex;
 
   /// Clean up ESBMC internal variable names
@@ -64,7 +66,8 @@ private:
   void write_test_function(
     std::ofstream &file,
     const std::string &func_name,
-    const std::vector<std::string> &param_names) const;
+    const std::vector<std::string> &param_names,
+    const std::vector<std::pair<size_t, std::string>> &literal_args = {}) const;
 
 public:
   pytest_generator() = default;
