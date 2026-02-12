@@ -1,6 +1,6 @@
 def test_nondet_dict_iteration() -> None:
     """Test iterating over nondet dictionary keys."""
-    x = nondet_dict(3, key_type=nondet_int(), value_type=nondet_int())
+    x = nondet_dict(3, key_type=int, value_type=int)
     __ESBMC_assume(len(x) == 2)
     
     count: int = 0

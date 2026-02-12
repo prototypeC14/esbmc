@@ -1,6 +1,6 @@
 def test_nondet_dict_float_values() -> None:
     """Test nondet dictionary with float values."""
-    x = nondet_dict(2, key_type=nondet_int(), value_type=nondet_float())
+    x = nondet_dict(2, key_type=int, value_type=float)
     __ESBMC_assume(len(x) > 0)
     
     # Test value access with nondet key

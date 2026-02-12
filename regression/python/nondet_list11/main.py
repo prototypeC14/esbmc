@@ -1,6 +1,6 @@
 def test_nondet_list_bool_in_conditional():
     """Test nondet list behavior in conditionals."""
-    x:list[bool] = nondet_list(9, nondet_bool())
+    x:list[bool] = nondet_list(9, elem_type=bool)
 
     result = False
 

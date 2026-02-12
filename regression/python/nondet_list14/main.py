@@ -1,6 +1,6 @@
 def test_nondet_list_float_modification():
     """Test modifying elements of a nondet list."""
-    x = nondet_list(4, nondet_float())
+    x = nondet_list(4, elem_type=float)
     __ESBMC_assume(len(x) > 0)
 
     x.append(10.5)

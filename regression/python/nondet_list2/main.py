@@ -1,6 +1,6 @@
 def test_nondet_list_bool():
     """Nondet list with explicit int type."""
-    x:list[int] = nondet_list(8, nondet_bool())
+    x:list[int] = nondet_list(8, elem_type=bool)
     if len(x) > 0:
         elem = x[0]
         # Each element is a nondet integer - can be any value
@@ -20,7 +20,7 @@ test_nondet_list_int()
 
 def test_nondet_list_float():
     """Nondet list with explicit int type."""
-    x:list[int] = nondet_list(8, nondet_float())
+    x:list[int] = nondet_list(8, elem_type=float)
     if len(x) > 0:
         elem = x[0]
         # Each element is a nondet integer - can be any value

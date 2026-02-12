@@ -1,6 +1,6 @@
 def test_nondet_list_bool_modification():
     """Test modifying elements of a nondet list."""
-    x = nondet_list(4, nondet_bool())
+    x = nondet_list(4, elem_type=bool)
     __ESBMC_assume(len(x) > 0)
 
     x.append(True)
