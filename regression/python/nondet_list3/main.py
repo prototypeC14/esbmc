@@ -1,6 +1,6 @@
 def test_nondet_list_append_bool():
     """Test appending to a nondet list."""
-    x = nondet_list(4, elem_type=bool)
+    x = nondet_list(4, elem_type=nondet_bool())
     original_len = len(x)
     x.append(42)
     assert len(x) == original_len + 1
@@ -18,7 +18,7 @@ test_nondet_list_append()
 
 def test_nondet_list_append_float():
     """Test appending to a nondet list."""
-    x = nondet_list(4, elem_type=float)
+    x = nondet_list(4, elem_type=nondet_float())
     original_len = len(x)
     x.append(42)
     assert len(x) == original_len + 1

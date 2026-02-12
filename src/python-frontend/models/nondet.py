@@ -5,16 +5,14 @@ USAGE:
     # Lists:
     x = nondet_list()                                    # int list, size [0, 8]
     x = nondet_list(5)                                   # int list, size [0, 5]
-    x = nondet_list(elem_type=float)                     # float list, size [0, 8]
-    x = nondet_list(elem_type=nondet_float())            # float list (alternative)
-    x = nondet_list(max_size=10, elem_type=bool)         # bool list, size [0, 10]
+    x = nondet_list(elem_type=nondet_float())            # float list, size [0, 8]
+    x = nondet_list(max_size=10, elem_type=nondet_bool())# bool list, size [0, 10]
 
     # Dictionaries:
     d = nondet_dict()                                    # int->int dict, size [0, 8]
     d = nondet_dict(5)                                   # int->int dict, size [0, 5]
-    d = nondet_dict(key_type=str, value_type=float)
-    d = nondet_dict(key_type=nondet_int(), value_type=nondet_int())  # alternative
-    d = nondet_dict(max_size=10, key_type=int, value_type=bool)
+    d = nondet_dict(key_type=nondet_str(), value_type=nondet_float())
+    d = nondet_dict(max_size=10, key_type=nondet_int(), value_type=nondet_bool())
 """
 
 from typing import Any
@@ -46,8 +44,8 @@ def nondet_list(max_size: int = _DEFAULT_NONDET_SIZE, elem_type: Any = None) -> 
     Args:
         max_size: Maximum size of the list (default: 8).
                   The actual size will be in range [0, max_size].
-        elem_type: Type of list elements (default: int).
-                   Supported: int, float, bool, str (or nondet_int(), etc.)
+        elem_type: A nondet value indicating desired element type (default: int).
+                   Pass nondet_int(), nondet_float(), nondet_bool(), or nondet_str().
 
     Returns:
         list: A list with arbitrary size and contents of specified type.
@@ -55,22 +53,23 @@ def nondet_list(max_size: int = _DEFAULT_NONDET_SIZE, elem_type: Any = None) -> 
     Examples:
         x = nondet_list()                                    # int list, size [0, 8]
         x = nondet_list(5)                                   # int list, size [0, 5]
-        x = nondet_list(elem_type=float)                     # float list, size [0, 8]
-        x = nondet_list(max_size=10, elem_type=bool)         # bool list, size [0, 10]
+        x = nondet_list(elem_type=nondet_float())            # float list, size [0, 8]
+        x = nondet_list(max_size=10, elem_type=nondet_bool())# bool list, size [0, 10]
     """
     result: list = []
     size: int = _nondet_size(max_size)
 
     i: int = 0
     while i < size:
-        # Support both: elem_type=int (type) and elem_type=nondet_int() (value)
-        if elem_type is None or elem_type == int or type(elem_type) == int:
+        # Detect type using type() comparison with literal values
+        # (ESBMC doesn't support int/str/etc. as type identifiers)
+        if elem_type is None or type(elem_type) == type(0):
             elem: Any = nondet_int()
-        elif elem_type == float or type(elem_type) == float:
+        elif type(elem_type) == type(0.0):
             elem: Any = nondet_float()
-        elif elem_type == bool or type(elem_type) == bool:
+        elif type(elem_type) == type(True):
             elem: Any = nondet_bool()
-        elif elem_type == str or type(elem_type) == str:
+        elif type(elem_type) == type(""):
             elem: Any = nondet_str()
         else:
             elem: Any = nondet_int()
@@ -89,10 +88,10 @@ def nondet_dict(max_size: int = _DEFAULT_NONDET_SIZE,
     Args:
         max_size: Maximum size of the dictionary (default: 8).
                   The actual size will be in range [0, max_size].
-        key_type: Type of dictionary keys (default: int).
-                  Supported: int, str, bool
-        value_type: Type of dictionary values (default: int).
-                    Supported: int, float, bool, str
+        key_type: A nondet value indicating desired key type (default: int).
+                  Pass nondet_int(), nondet_str(), or nondet_bool().
+        value_type: A nondet value indicating desired value type (default: int).
+                    Pass nondet_int(), nondet_float(), nondet_bool(), or nondet_str().
 
     Returns:
         dict: A dictionary with arbitrary size and contents of specified types.
@@ -100,32 +99,32 @@ def nondet_dict(max_size: int = _DEFAULT_NONDET_SIZE,
     Examples:
         d = nondet_dict()                              # int->int dict, size [0, 8]
         d = nondet_dict(5)                             # int->int dict, size [0, 5]
-        d = nondet_dict(key_type=str, value_type=float)
-        d = nondet_dict(max_size=10, key_type=int, value_type=bool)
+        d = nondet_dict(key_type=nondet_str(), value_type=nondet_float())
+        d = nondet_dict(max_size=10, key_type=nondet_int(), value_type=nondet_bool())
     """
     result: dict = {}
     size: int = _nondet_size(max_size)
 
     i: int = 0
     while i < size:
-        # Support both: key_type=int (type) and key_type=nondet_int() (value)
-        if key_type is None or key_type == int or type(key_type) == int:
+        # Detect type using type() comparison with literal values
+        # (ESBMC doesn't support int/str/etc. as type identifiers)
+        if key_type is None or type(key_type) == type(0):
             k: Any = nondet_int()
-        elif key_type == str or type(key_type) == str:
+        elif type(key_type) == type(""):
             k: Any = nondet_str()
-        elif key_type == bool or type(key_type) == bool:
+        elif type(key_type) == type(True):
             k: Any = nondet_bool()
         else:
             k: Any = nondet_int()
 
-        # Support both: value_type=int (type) and value_type=nondet_int() (value)
-        if value_type is None or value_type == int or type(value_type) == int:
+        if value_type is None or type(value_type) == type(0):
             v: Any = nondet_int()
-        elif value_type == float or type(value_type) == float:
+        elif type(value_type) == type(0.0):
             v: Any = nondet_float()
-        elif value_type == bool or type(value_type) == bool:
+        elif type(value_type) == type(True):
             v: Any = nondet_bool()
-        elif value_type == str or type(value_type) == str:
+        elif type(value_type) == type(""):
             v: Any = nondet_str()
         else:
             v: Any = nondet_int()

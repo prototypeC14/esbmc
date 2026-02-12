@@ -1,6 +1,6 @@
 import math
 
-l:list[float] = nondet_list(2, elem_type=float)
+l:list[float] = nondet_list(2, elem_type=nondet_float())
 __ESBMC_assume(len(l)>0)
 x = l[0]
 if not math.isnan(x):
