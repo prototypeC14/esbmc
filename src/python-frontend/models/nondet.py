@@ -95,123 +95,6 @@ def nondet_list(max_size: int = _DEFAULT_NONDET_SIZE, elem_type: Any = None) -> 
     return result
 
 
-def _fill_dict_int_keys(result: dict, size: int, value_type: Any) -> None:
-    """Fill dict with int keys and specified value type."""
-    if value_type is None or isinstance(value_type, int):
-        i: int = 0
-        while i < size:
-            k_int: int = nondet_int()
-            v_int: int = nondet_int()
-            result[k_int] = v_int
-            i = i + 1
-    elif isinstance(value_type, float):
-        i: int = 0
-        while i < size:
-            k_int: int = nondet_int()
-            v_float: float = nondet_float()
-            result[k_int] = v_float
-            i = i + 1
-    elif isinstance(value_type, bool):
-        i: int = 0
-        while i < size:
-            k_int: int = nondet_int()
-            v_bool: bool = nondet_bool()
-            result[k_int] = v_bool
-            i = i + 1
-    elif isinstance(value_type, str):
-        i: int = 0
-        while i < size:
-            k_int: int = nondet_int()
-            v_str: str = nondet_str()
-            result[k_int] = v_str
-            i = i + 1
-    else:
-        i: int = 0
-        while i < size:
-            k_int: int = nondet_int()
-            v_default: int = nondet_int()
-            result[k_int] = v_default
-            i = i + 1
-
-
-def _fill_dict_str_keys(result: dict, size: int, value_type: Any) -> None:
-    """Fill dict with str keys and specified value type."""
-    if value_type is None or isinstance(value_type, int):
-        i: int = 0
-        while i < size:
-            k_str: str = nondet_str()
-            v_int: int = nondet_int()
-            result[k_str] = v_int
-            i = i + 1
-    elif isinstance(value_type, float):
-        i: int = 0
-        while i < size:
-            k_str: str = nondet_str()
-            v_float: float = nondet_float()
-            result[k_str] = v_float
-            i = i + 1
-    elif isinstance(value_type, bool):
-        i: int = 0
-        while i < size:
-            k_str: str = nondet_str()
-            v_bool: bool = nondet_bool()
-            result[k_str] = v_bool
-            i = i + 1
-    elif isinstance(value_type, str):
-        i: int = 0
-        while i < size:
-            k_str: str = nondet_str()
-            v_str: str = nondet_str()
-            result[k_str] = v_str
-            i = i + 1
-    else:
-        i: int = 0
-        while i < size:
-            k_str: str = nondet_str()
-            v_default: int = nondet_int()
-            result[k_str] = v_default
-            i = i + 1
-
-
-def _fill_dict_bool_keys(result: dict, size: int, value_type: Any) -> None:
-    """Fill dict with bool keys and specified value type."""
-    if value_type is None or isinstance(value_type, int):
-        i: int = 0
-        while i < size:
-            k_bool: bool = nondet_bool()
-            v_int: int = nondet_int()
-            result[k_bool] = v_int
-            i = i + 1
-    elif isinstance(value_type, float):
-        i: int = 0
-        while i < size:
-            k_bool: bool = nondet_bool()
-            v_float: float = nondet_float()
-            result[k_bool] = v_float
-            i = i + 1
-    elif isinstance(value_type, bool):
-        i: int = 0
-        while i < size:
-            k_bool: bool = nondet_bool()
-            v_bool: bool = nondet_bool()
-            result[k_bool] = v_bool
-            i = i + 1
-    elif isinstance(value_type, str):
-        i: int = 0
-        while i < size:
-            k_bool: bool = nondet_bool()
-            v_str: str = nondet_str()
-            result[k_bool] = v_str
-            i = i + 1
-    else:
-        i: int = 0
-        while i < size:
-            k_bool: bool = nondet_bool()
-            v_default: int = nondet_int()
-            result[k_bool] = v_default
-            i = i + 1
-
-
 def nondet_dict(max_size: int = _DEFAULT_NONDET_SIZE,
                 key_type: Any = None,
                 value_type: Any = None) -> dict:
@@ -238,15 +121,159 @@ def nondet_dict(max_size: int = _DEFAULT_NONDET_SIZE,
     result: dict = {}
     size: int = _nondet_size(max_size)
 
-    # Use isinstance() to detect type, delegate to helper functions
+    # Use isinstance() to detect type, use different variable names per type
     # (ESBMC requires each variable to have a single type across all branches)
+
+    # int keys
     if key_type is None or isinstance(key_type, int):
-        _fill_dict_int_keys(result, size, value_type)
+        if value_type is None or isinstance(value_type, int):
+            i: int = 0
+            while i < size:
+                k_int_v_int_k: int = nondet_int()
+                k_int_v_int_v: int = nondet_int()
+                result[k_int_v_int_k] = k_int_v_int_v
+                i = i + 1
+        elif isinstance(value_type, float):
+            i: int = 0
+            while i < size:
+                k_int_v_float_k: int = nondet_int()
+                k_int_v_float_v: float = nondet_float()
+                result[k_int_v_float_k] = k_int_v_float_v
+                i = i + 1
+        elif isinstance(value_type, bool):
+            i: int = 0
+            while i < size:
+                k_int_v_bool_k: int = nondet_int()
+                k_int_v_bool_v: bool = nondet_bool()
+                result[k_int_v_bool_k] = k_int_v_bool_v
+                i = i + 1
+        elif isinstance(value_type, str):
+            i: int = 0
+            while i < size:
+                k_int_v_str_k: int = nondet_int()
+                k_int_v_str_v: str = nondet_str()
+                result[k_int_v_str_k] = k_int_v_str_v
+                i = i + 1
+        else:
+            i: int = 0
+            while i < size:
+                k_int_v_def_k: int = nondet_int()
+                k_int_v_def_v: int = nondet_int()
+                result[k_int_v_def_k] = k_int_v_def_v
+                i = i + 1
+
+    # str keys
     elif isinstance(key_type, str):
-        _fill_dict_str_keys(result, size, value_type)
+        if value_type is None or isinstance(value_type, int):
+            i: int = 0
+            while i < size:
+                k_str_v_int_k: str = nondet_str()
+                k_str_v_int_v: int = nondet_int()
+                result[k_str_v_int_k] = k_str_v_int_v
+                i = i + 1
+        elif isinstance(value_type, float):
+            i: int = 0
+            while i < size:
+                k_str_v_float_k: str = nondet_str()
+                k_str_v_float_v: float = nondet_float()
+                result[k_str_v_float_k] = k_str_v_float_v
+                i = i + 1
+        elif isinstance(value_type, bool):
+            i: int = 0
+            while i < size:
+                k_str_v_bool_k: str = nondet_str()
+                k_str_v_bool_v: bool = nondet_bool()
+                result[k_str_v_bool_k] = k_str_v_bool_v
+                i = i + 1
+        elif isinstance(value_type, str):
+            i: int = 0
+            while i < size:
+                k_str_v_str_k: str = nondet_str()
+                k_str_v_str_v: str = nondet_str()
+                result[k_str_v_str_k] = k_str_v_str_v
+                i = i + 1
+        else:
+            i: int = 0
+            while i < size:
+                k_str_v_def_k: str = nondet_str()
+                k_str_v_def_v: int = nondet_int()
+                result[k_str_v_def_k] = k_str_v_def_v
+                i = i + 1
+
+    # bool keys
     elif isinstance(key_type, bool):
-        _fill_dict_bool_keys(result, size, value_type)
+        if value_type is None or isinstance(value_type, int):
+            i: int = 0
+            while i < size:
+                k_bool_v_int_k: bool = nondet_bool()
+                k_bool_v_int_v: int = nondet_int()
+                result[k_bool_v_int_k] = k_bool_v_int_v
+                i = i + 1
+        elif isinstance(value_type, float):
+            i: int = 0
+            while i < size:
+                k_bool_v_float_k: bool = nondet_bool()
+                k_bool_v_float_v: float = nondet_float()
+                result[k_bool_v_float_k] = k_bool_v_float_v
+                i = i + 1
+        elif isinstance(value_type, bool):
+            i: int = 0
+            while i < size:
+                k_bool_v_bool_k: bool = nondet_bool()
+                k_bool_v_bool_v: bool = nondet_bool()
+                result[k_bool_v_bool_k] = k_bool_v_bool_v
+                i = i + 1
+        elif isinstance(value_type, str):
+            i: int = 0
+            while i < size:
+                k_bool_v_str_k: bool = nondet_bool()
+                k_bool_v_str_v: str = nondet_str()
+                result[k_bool_v_str_k] = k_bool_v_str_v
+                i = i + 1
+        else:
+            i: int = 0
+            while i < size:
+                k_bool_v_def_k: bool = nondet_bool()
+                k_bool_v_def_v: int = nondet_int()
+                result[k_bool_v_def_k] = k_bool_v_def_v
+                i = i + 1
+
+    # default: int keys
     else:
-        _fill_dict_int_keys(result, size, value_type)
+        if value_type is None or isinstance(value_type, int):
+            i: int = 0
+            while i < size:
+                k_def_v_int_k: int = nondet_int()
+                k_def_v_int_v: int = nondet_int()
+                result[k_def_v_int_k] = k_def_v_int_v
+                i = i + 1
+        elif isinstance(value_type, float):
+            i: int = 0
+            while i < size:
+                k_def_v_float_k: int = nondet_int()
+                k_def_v_float_v: float = nondet_float()
+                result[k_def_v_float_k] = k_def_v_float_v
+                i = i + 1
+        elif isinstance(value_type, bool):
+            i: int = 0
+            while i < size:
+                k_def_v_bool_k: int = nondet_int()
+                k_def_v_bool_v: bool = nondet_bool()
+                result[k_def_v_bool_k] = k_def_v_bool_v
+                i = i + 1
+        elif isinstance(value_type, str):
+            i: int = 0
+            while i < size:
+                k_def_v_str_k: int = nondet_int()
+                k_def_v_str_v: str = nondet_str()
+                result[k_def_v_str_k] = k_def_v_str_v
+                i = i + 1
+        else:
+            i: int = 0
+            while i < size:
+                k_def_v_def_k: int = nondet_int()
+                k_def_v_def_v: int = nondet_int()
+                result[k_def_v_def_k] = k_def_v_def_v
+                i = i + 1
 
     return result
