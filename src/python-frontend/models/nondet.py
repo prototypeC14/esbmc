@@ -59,24 +59,157 @@ def nondet_list(max_size: int = _DEFAULT_NONDET_SIZE, elem_type: Any = None) -> 
     result: list = []
     size: int = _nondet_size(max_size)
 
-    i: int = 0
-    while i < size:
-        # Detect type using type() comparison with literal values
-        # (ESBMC doesn't support int/str/etc. as type identifiers)
-        if elem_type is None or type(elem_type) == type(0):
-            elem: Any = nondet_int()
-        elif type(elem_type) == type(0.0):
-            elem: Any = nondet_float()
-        elif type(elem_type) == type(True):
-            elem: Any = nondet_bool()
-        elif type(elem_type) == type(""):
-            elem: Any = nondet_str()
-        else:
-            elem: Any = nondet_int()
-        result.append(elem)
-        i = i + 1
+    # Use isinstance() to detect type, use different variable names per type
+    # (ESBMC requires each variable to have a single type across all branches)
+    if elem_type is None or isinstance(elem_type, int):
+        i: int = 0
+        while i < size:
+            elem_int: int = nondet_int()
+            result.append(elem_int)
+            i = i + 1
+    elif isinstance(elem_type, float):
+        i: int = 0
+        while i < size:
+            elem_float: float = nondet_float()
+            result.append(elem_float)
+            i = i + 1
+    elif isinstance(elem_type, bool):
+        i: int = 0
+        while i < size:
+            elem_bool: bool = nondet_bool()
+            result.append(elem_bool)
+            i = i + 1
+    elif isinstance(elem_type, str):
+        i: int = 0
+        while i < size:
+            elem_str: str = nondet_str()
+            result.append(elem_str)
+            i = i + 1
+    else:
+        i: int = 0
+        while i < size:
+            elem_default: int = nondet_int()
+            result.append(elem_default)
+            i = i + 1
 
     return result
+
+
+def _fill_dict_int_keys(result: dict, size: int, value_type: Any) -> None:
+    """Fill dict with int keys and specified value type."""
+    if value_type is None or isinstance(value_type, int):
+        i: int = 0
+        while i < size:
+            k_int: int = nondet_int()
+            v_int: int = nondet_int()
+            result[k_int] = v_int
+            i = i + 1
+    elif isinstance(value_type, float):
+        i: int = 0
+        while i < size:
+            k_int: int = nondet_int()
+            v_float: float = nondet_float()
+            result[k_int] = v_float
+            i = i + 1
+    elif isinstance(value_type, bool):
+        i: int = 0
+        while i < size:
+            k_int: int = nondet_int()
+            v_bool: bool = nondet_bool()
+            result[k_int] = v_bool
+            i = i + 1
+    elif isinstance(value_type, str):
+        i: int = 0
+        while i < size:
+            k_int: int = nondet_int()
+            v_str: str = nondet_str()
+            result[k_int] = v_str
+            i = i + 1
+    else:
+        i: int = 0
+        while i < size:
+            k_int: int = nondet_int()
+            v_default: int = nondet_int()
+            result[k_int] = v_default
+            i = i + 1
+
+
+def _fill_dict_str_keys(result: dict, size: int, value_type: Any) -> None:
+    """Fill dict with str keys and specified value type."""
+    if value_type is None or isinstance(value_type, int):
+        i: int = 0
+        while i < size:
+            k_str: str = nondet_str()
+            v_int: int = nondet_int()
+            result[k_str] = v_int
+            i = i + 1
+    elif isinstance(value_type, float):
+        i: int = 0
+        while i < size:
+            k_str: str = nondet_str()
+            v_float: float = nondet_float()
+            result[k_str] = v_float
+            i = i + 1
+    elif isinstance(value_type, bool):
+        i: int = 0
+        while i < size:
+            k_str: str = nondet_str()
+            v_bool: bool = nondet_bool()
+            result[k_str] = v_bool
+            i = i + 1
+    elif isinstance(value_type, str):
+        i: int = 0
+        while i < size:
+            k_str: str = nondet_str()
+            v_str: str = nondet_str()
+            result[k_str] = v_str
+            i = i + 1
+    else:
+        i: int = 0
+        while i < size:
+            k_str: str = nondet_str()
+            v_default: int = nondet_int()
+            result[k_str] = v_default
+            i = i + 1
+
+
+def _fill_dict_bool_keys(result: dict, size: int, value_type: Any) -> None:
+    """Fill dict with bool keys and specified value type."""
+    if value_type is None or isinstance(value_type, int):
+        i: int = 0
+        while i < size:
+            k_bool: bool = nondet_bool()
+            v_int: int = nondet_int()
+            result[k_bool] = v_int
+            i = i + 1
+    elif isinstance(value_type, float):
+        i: int = 0
+        while i < size:
+            k_bool: bool = nondet_bool()
+            v_float: float = nondet_float()
+            result[k_bool] = v_float
+            i = i + 1
+    elif isinstance(value_type, bool):
+        i: int = 0
+        while i < size:
+            k_bool: bool = nondet_bool()
+            v_bool: bool = nondet_bool()
+            result[k_bool] = v_bool
+            i = i + 1
+    elif isinstance(value_type, str):
+        i: int = 0
+        while i < size:
+            k_bool: bool = nondet_bool()
+            v_str: str = nondet_str()
+            result[k_bool] = v_str
+            i = i + 1
+    else:
+        i: int = 0
+        while i < size:
+            k_bool: bool = nondet_bool()
+            v_default: int = nondet_int()
+            result[k_bool] = v_default
+            i = i + 1
 
 
 def nondet_dict(max_size: int = _DEFAULT_NONDET_SIZE,
@@ -105,31 +238,15 @@ def nondet_dict(max_size: int = _DEFAULT_NONDET_SIZE,
     result: dict = {}
     size: int = _nondet_size(max_size)
 
-    i: int = 0
-    while i < size:
-        # Detect type using type() comparison with literal values
-        # (ESBMC doesn't support int/str/etc. as type identifiers)
-        if key_type is None or type(key_type) == type(0):
-            k: Any = nondet_int()
-        elif type(key_type) == type(""):
-            k: Any = nondet_str()
-        elif type(key_type) == type(True):
-            k: Any = nondet_bool()
-        else:
-            k: Any = nondet_int()
-
-        if value_type is None or type(value_type) == type(0):
-            v: Any = nondet_int()
-        elif type(value_type) == type(0.0):
-            v: Any = nondet_float()
-        elif type(value_type) == type(True):
-            v: Any = nondet_bool()
-        elif type(value_type) == type(""):
-            v: Any = nondet_str()
-        else:
-            v: Any = nondet_int()
-
-        result[k] = v
-        i = i + 1
+    # Use isinstance() to detect type, delegate to helper functions
+    # (ESBMC requires each variable to have a single type across all branches)
+    if key_type is None or isinstance(key_type, int):
+        _fill_dict_int_keys(result, size, value_type)
+    elif isinstance(key_type, str):
+        _fill_dict_str_keys(result, size, value_type)
+    elif isinstance(key_type, bool):
+        _fill_dict_bool_keys(result, size, value_type)
+    else:
+        _fill_dict_int_keys(result, size, value_type)
 
     return result
