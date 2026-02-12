@@ -61,10 +61,10 @@ def nondet_list(max_size: int = _DEFAULT_NONDET_SIZE, elem_type: Any = None) -> 
 
     i: int = 0
     while i < size:
-        if elem_type is None or type(elem_type) == int:
-            elem = nondet_int()
+        if elem_type is None:
+            elem: Any = nondet_int()
         else:
-            elem = elem_type
+            elem: Any = elem_type
         result.append(elem)
         i = i + 1
 
@@ -99,15 +99,15 @@ def nondet_dict(max_size: int = _DEFAULT_NONDET_SIZE,
 
     i: int = 0
     while i < size:
-        if key_type is None or type(key_type) == int:
-            k = nondet_int()
+        if key_type is None:
+            k: Any = nondet_int()
         else:
-            k = key_type
+            k: Any = key_type
 
-        if value_type is None or type(value_type) == int:
-            v = nondet_int()
+        if value_type is None:
+            v: Any = nondet_int()
         else:
-            v = value_type
+            v: Any = value_type
 
         result[k] = v
         i = i + 1
