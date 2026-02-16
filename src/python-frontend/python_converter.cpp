@@ -3593,6 +3593,12 @@ void python_converter::handle_assignment_type_adjustments(
         // Array to pointer conversion for strings assigned to Any variables
         rhs = string_handler_.get_array_base_address(rhs);
       }
+      else if (lhs.type().is_pointer() && !rhs.type().is_pointer())
+      {
+        // Typecast non-pointer RHS (int, float, bool) to void* so
+        // the generated assignment is type-consistent in the GOTO program.
+        rhs = typecast_exprt(rhs, lhs.type());
+      }
       if (!rhs.type().is_empty() && !is_ctor_call)
         lhs_symbol->value = rhs;
       return;
