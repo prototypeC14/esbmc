@@ -3582,6 +3582,21 @@ void python_converter::handle_assignment_type_adjustments(
   }
   else if (lhs_symbol)
   {
+    // Handle Any-typed variables: preserve the any_type() (void*) for the
+    // symbol and only perform necessary RHS conversions. This prevents type
+    // corruption when the same Any-annotated variable is assigned different
+    // types in different conditional branches (e.g., int in if, str in else).
+    if (lhs_type == "Any")
+    {
+      if (lhs.type().is_pointer() && rhs.type().is_array())
+      {
+        // Array to pointer conversion for strings assigned to Any variables
+        rhs = string_handler_.get_array_base_address(rhs);
+      }
+      if (!rhs.type().is_empty() && !is_ctor_call)
+        lhs_symbol->value = rhs;
+      return;
+    }
     // Handle string-to-string variable assignments
     if (lhs_type == "str" && rhs.is_symbol())
     {
@@ -4427,7 +4442,12 @@ void python_converter::get_var_assign(
       return;
     }
 
-    adjust_statement_types(lhs, rhs);
+    // Skip numeric type adjustments for Any-typed variables: the
+    // width-comparison logic in adjust_statement_types would incorrectly
+    // change a void* (any_type) to match a numeric RHS type, corrupting
+    // the symbol type when the variable appears in conditional branches.
+    if (lhs_type != "Any")
+      adjust_statement_types(lhs, rhs);
 
     // Handle list type info propagation
     if (lhs.type() == rhs.type() && lhs.type() == type_handler_.get_list_type())
