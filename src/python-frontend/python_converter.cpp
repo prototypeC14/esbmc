@@ -1537,6 +1537,13 @@ exprt python_converter::get_binary_operator_expr(const nlohmann::json &element)
   attach_symbol_location(lhs, symbol_table());
   attach_symbol_location(rhs, symbol_table());
 
+  // Handle Any-typed (void*) operands: typecast to the concrete type
+  // of the other operand so the SMT solver doesn't see pointer vs scalar.
+  if (lhs.type() == any_type() && rhs.type() != any_type() && !rhs.type().is_empty())
+    lhs = typecast_exprt(lhs, rhs.type());
+  else if (rhs.type() == any_type() && lhs.type() != any_type() && !lhs.type().is_empty())
+    rhs = typecast_exprt(rhs, lhs.type());
+
   // Handle set operations (difference, intersection, union)
   typet list_type = type_handler_.get_list_type();
   if (
