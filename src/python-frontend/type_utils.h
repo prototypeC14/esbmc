@@ -124,7 +124,8 @@ public:
       name == "ZeroDivisionError" || name == "AssertionError" ||
       name == "NameError" || name == "OSError" || name == "FileNotFoundError" ||
       name == "FileExistsError" || name == "PermissionError" ||
-      name == "NotImplementedError");
+      name == "NotImplementedError" || name == "ImportError" ||
+      name == "ModuleNotFoundError" || name == "RuntimeError");
   }
 
   static bool is_c_model_func(const std::string &func_name)
@@ -272,6 +273,24 @@ public:
   {
     return element.contains("_type") && element["_type"] == "Subscript" &&
            element.contains("value");
+  }
+
+  static inline bool is_type_identifier(const std::string &name)
+  {
+    static const std::unordered_set<std::string> type_identifiers = {
+      "int",
+      "float",
+      "str",
+      "bool",
+      "bytes",
+      "list",
+      "set",
+      "tuple",
+      "type",
+      "object",
+      "complex",
+      "frozenset"};
+    return type_identifiers.find(name) != type_identifiers.end();
   }
 
 private:
