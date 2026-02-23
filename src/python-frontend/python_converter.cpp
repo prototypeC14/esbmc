@@ -3805,8 +3805,32 @@ void python_converter::handle_assignment_type_adjustments(
     {
       if (!rhs.type().is_empty())
       {
-        lhs_symbol->type = rhs.type();
-        lhs.type() = rhs.type();
+        // Check if updating the symbol type is safe. Changing a scalar
+        // (int/float/bool) symbol to an array type corrupts the GOTO
+        // program because migrate.cpp applies the symbol-table type to
+        // ALL occurrences of the variable, including earlier assignments
+        // that were created with the old scalar type.
+        // Note: we check the actual lhs.type() (from the symbol), not
+        // the annotation string lhs_type, because the type annotator
+        // may have added a "str" annotation to an assignment whose
+        // symbol is still a scalar from a previous assignment.
+        bool lhs_is_compatible =
+          lhs.type().is_array() || lhs.type().is_pointer() ||
+          lhs.type().id().empty();
+
+        if (lhs_is_compatible)
+        {
+          lhs_symbol->type = rhs.type();
+          lhs.type() = rhs.type();
+        }
+        else
+        {
+          // Dynamic typing: variable was a scalar, now assigned a
+          // string/array. Convert array RHS to pointer, then typecast
+          // to the existing LHS type to maintain type consistency.
+          rhs = string_handler_.get_array_base_address(rhs);
+          rhs = typecast_exprt(rhs, lhs.type());
+        }
       }
     }
     else if (rhs.type() == none_type())
