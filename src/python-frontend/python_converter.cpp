@@ -3795,8 +3795,11 @@ void python_converter::handle_assignment_type_adjustments(
     {
       if (lhs.type().is_pointer() && rhs.type().is_array())
       {
-        // Array to pointer conversion for strings assigned to Any variables
+        // Array to pointer conversion for strings assigned to Any variables.
+        // get_array_base_address returns char*; cast to void* (Any) so the
+        // generated assignment has matching pointer types on both sides.
         rhs = string_handler_.get_array_base_address(rhs);
+        rhs = typecast_exprt(rhs, lhs.type());
       }
       else if (lhs.type().is_pointer() && !rhs.type().is_pointer())
       {
