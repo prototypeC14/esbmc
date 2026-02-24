@@ -1550,10 +1550,36 @@ exprt python_converter::get_binary_operator_expr(const nlohmann::json &element)
 
   // Handle Any-typed (void*) operands: typecast to the concrete type
   // of the other operand so the SMT solver doesn't see pointer vs scalar.
+  // Float targets need pointer→uint→bitcast→float to preserve bit patterns,
+  // since SMT solvers don't support direct float↔pointer casts.
   if (lhs.type() == any_type() && rhs.type() != any_type() && !rhs.type().is_empty())
-    lhs = typecast_exprt(lhs, rhs.type());
+  {
+    if (rhs.type().is_floatbv())
+    {
+      unsigned width =
+        static_cast<const bv_typet &>(rhs.type()).get_width();
+      exprt as_uint = typecast_exprt(lhs, unsignedbv_typet(width));
+      exprt bitcast("bitcast", rhs.type());
+      bitcast.copy_to_operands(as_uint);
+      lhs = bitcast;
+    }
+    else
+      lhs = typecast_exprt(lhs, rhs.type());
+  }
   else if (rhs.type() == any_type() && lhs.type() != any_type() && !lhs.type().is_empty())
-    rhs = typecast_exprt(rhs, lhs.type());
+  {
+    if (lhs.type().is_floatbv())
+    {
+      unsigned width =
+        static_cast<const bv_typet &>(lhs.type()).get_width();
+      exprt as_uint = typecast_exprt(rhs, unsignedbv_typet(width));
+      exprt bitcast("bitcast", lhs.type());
+      bitcast.copy_to_operands(as_uint);
+      rhs = bitcast;
+    }
+    else
+      rhs = typecast_exprt(rhs, lhs.type());
+  }
 
   // Handle set operations (difference, intersection, union)
   typet list_type = type_handler_.get_list_type();
@@ -3776,6 +3802,16 @@ void python_converter::handle_assignment_type_adjustments(
       {
         // Typecast non-pointer RHS (int, float, bool) to void* so
         // the generated assignment is type-consistent in the GOTO program.
+        // Float types need a two-step conversion (float→bitcast→uint→pointer)
+        // using bitcast to preserve the exact bit pattern of the float value.
+        if (rhs.type().is_floatbv())
+        {
+          unsigned width =
+            static_cast<const bv_typet &>(rhs.type()).get_width();
+          exprt bitcast("bitcast", unsignedbv_typet(width));
+          bitcast.copy_to_operands(rhs);
+          rhs = bitcast;
+        }
         rhs = typecast_exprt(rhs, lhs.type());
       }
       if (!rhs.type().is_empty() && !is_ctor_call)
