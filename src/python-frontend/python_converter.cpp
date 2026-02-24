@@ -1552,6 +1552,9 @@ exprt python_converter::get_binary_operator_expr(const nlohmann::json &element)
   // of the other operand so the SMT solver doesn't see pointer vs scalar.
   // Float targets need pointer→uint→bitcast→float to preserve bit patterns,
   // since SMT solvers don't support direct float↔pointer casts.
+  // Array targets (e.g., string literals modeled as char[]) need
+  // array→pointer decay: void*→char* and array→char* so both sides
+  // are pointer-typed, since void*→array casts are not meaningful in ESBMC IR.
   if (lhs.type() == any_type() && rhs.type() != any_type() && !rhs.type().is_empty())
   {
     if (rhs.type().is_floatbv())
@@ -1562,6 +1565,13 @@ exprt python_converter::get_binary_operator_expr(const nlohmann::json &element)
       exprt bitcast("bitcast", rhs.type());
       bitcast.copy_to_operands(as_uint);
       lhs = bitcast;
+    }
+    else if (rhs.type().is_array())
+    {
+      // Decay array to pointer; cast void* to same pointer type.
+      typet elem_ptr = pointer_typet(rhs.type().subtype());
+      lhs = typecast_exprt(lhs, elem_ptr);
+      rhs = string_handler_.get_array_base_address(rhs);
     }
     else
       lhs = typecast_exprt(lhs, rhs.type());
@@ -1576,6 +1586,13 @@ exprt python_converter::get_binary_operator_expr(const nlohmann::json &element)
       exprt bitcast("bitcast", lhs.type());
       bitcast.copy_to_operands(as_uint);
       rhs = bitcast;
+    }
+    else if (lhs.type().is_array())
+    {
+      // Decay array to pointer; cast void* to same pointer type.
+      typet elem_ptr = pointer_typet(lhs.type().subtype());
+      rhs = typecast_exprt(rhs, elem_ptr);
+      lhs = string_handler_.get_array_base_address(lhs);
     }
     else
       rhs = typecast_exprt(rhs, lhs.type());
