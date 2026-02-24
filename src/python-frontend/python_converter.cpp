@@ -3882,10 +3882,13 @@ void python_converter::handle_assignment_type_adjustments(
         // Prevent type change from scalar (int/float/bool) to string/array
         // when a prior declaration exists with the scalar type, as this
         // creates a type inconsistency in the GOTO program.
+        // Exception: char_type (from get_typet("str",1)) is compatible
+        // with char arrays — both represent Python strings.
         bool is_incompatible =
           rhs.type().is_array() && !lhs_symbol->type.is_array() &&
           !lhs_symbol->type.is_pointer() && !lhs_symbol->type.id().empty() &&
           !lhs_symbol->type.is_nil() &&
+          !type_utils::is_char_type(lhs_symbol->type) &&
           lhs_symbol->type != type_handler_.get_list_type();
         if (!is_incompatible)
         {
