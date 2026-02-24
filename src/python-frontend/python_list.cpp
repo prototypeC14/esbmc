@@ -1,5 +1,6 @@
 #include <python-frontend/python_list.h>
 #include <python-frontend/python_converter.h>
+#include <python-frontend/python_exception_handler.h>
 #include <python-frontend/type_handler.h>
 #include <python-frontend/json_utils.h>
 #include <python-frontend/symbol_id.h>
@@ -965,8 +966,8 @@ exprt python_list::handle_range_slice(
     else // pointer case
     {
       elem_type = array.type().subtype();
-      array_len = exprt();   // Not used for pointers
-      logical_len = exprt(); // Will use explicit bounds only
+      array_len = nil_exprt();   // Not used for pointers
+      logical_len = nil_exprt(); // Will use explicit bounds only
     }
 
     // Process slice bounds (handles null, negative indices)
@@ -1025,6 +1026,24 @@ exprt python_list::handle_range_slice(
     }
     else
       upper_expr = process_bound("upper", logical_len);
+
+    // Clamp bounds to [0, logical_len] to match Python semantics.
+    // In Python, slice indices are silently clamped to the valid range,
+    // so s[10:] on a 6-char string returns "" (lower clamped to 6).
+    if (!logical_len.is_nil())
+    {
+      // lower = max(0, min(lower, logical_len))
+      exprt lower_ge_len(">=", bool_type());
+      lower_ge_len.copy_to_operands(lower_expr, logical_len);
+      lower_expr = if_exprt(lower_ge_len, logical_len, lower_expr);
+      lower_expr.type() = size_type();
+
+      // upper = max(0, min(upper, logical_len))
+      exprt upper_ge_len(">=", bool_type());
+      upper_ge_len.copy_to_operands(upper_expr, logical_len);
+      upper_expr = if_exprt(upper_ge_len, logical_len, upper_expr);
+      upper_expr.type() = size_type();
+    }
 
     // Calculate slice length
     minus_exprt slice_len(upper_expr, lower_expr);
@@ -1618,24 +1637,36 @@ exprt python_list::handle_index_access(
     return extract_pyobject_value(list_at_call, elem_type);
   }
 
-  // Handle static string indexing with safe null fallback
+  // Handle static string indexing with IndexError on out-of-bounds
   if (array.type().is_array() && array.type().subtype() == char_type())
   {
     exprt idx = pos_expr;
     if (idx.type() != size_type())
       idx = typecast_exprt(idx, size_type());
 
-    exprt bound = to_array_type(array.type()).size();
-    if (bound.type() != size_type())
-      bound = typecast_exprt(bound, size_type());
+    // Logical string length excludes the null terminator
+    exprt array_size = to_array_type(array.type()).size();
+    if (array_size.type() != size_type())
+      array_size = typecast_exprt(array_size, size_type());
+    exprt one = from_integer(1, size_type());
+    exprt str_len = exprt("-", size_type());
+    str_len.copy_to_operands(array_size, one);
 
-    exprt cond("<", bool_type());
-    cond.copy_to_operands(idx, bound);
+    // Emit: if (idx >= str_len) throw IndexError("string index out of range")
+    exprt oob_cond(">=", bool_type());
+    oob_cond.copy_to_operands(idx, str_len);
 
-    index_exprt in_bounds(array, idx, char_type());
-    if_exprt result(cond, in_bounds, gen_zero(char_type()));
-    result.type() = char_type();
-    return result;
+    exprt raise = converter_.get_exception_handler().gen_exception_raise(
+      "IndexError", "string index out of range");
+    codet throw_code("expression");
+    throw_code.operands().push_back(raise);
+
+    code_ifthenelset guard;
+    guard.cond() = oob_cond;
+    guard.then_case() = throw_code;
+    converter_.add_instruction(guard);
+
+    return index_exprt(array, idx, char_type());
   }
 
   // Handle static arrays

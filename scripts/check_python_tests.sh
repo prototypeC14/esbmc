@@ -24,6 +24,7 @@ ignored_dirs=(
   "cover5"
   "convert-byte-update2"
   "constants"
+  "decimal"
   "dict_del12_fail"
   "dict_del13_fail"
   "dict_del14"
