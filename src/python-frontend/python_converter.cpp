@@ -4432,7 +4432,20 @@ python_converter::extract_target_name(const nlohmann::json &target) const
   else if (target_type == "Attribute")
     return target["attr"].get<std::string>();
   else if (target_type == "Subscript")
-    return target["value"]["id"].get<std::string>();
+  {
+    // Walk through nested subscripts to find the base Name/Attribute node
+    const nlohmann::json *node = &target["value"];
+    while (
+      node->is_object() && node->contains("_type") &&
+      (*node)["_type"] == "Subscript" && node->contains("value"))
+    {
+      node = &(*node)["value"];
+    }
+    if (node->is_object() && node->contains("_type") &&
+        (*node)["_type"] == "Attribute")
+      return (*node)["attr"].get<std::string>();
+    return (*node)["id"].get<std::string>();
+  }
 
   throw std::runtime_error(
     "Unsupported assignment target type: " + target_type.get<std::string>());
