@@ -1376,10 +1376,14 @@ exprt python_list::handle_range_slice(
 
   // Update type map for sliced elements (only if both bounds are constant literals)
   if (
-    slice_node.contains("lower") && !slice_node["lower"].is_null() &&
+    slice_node.contains("lower") && slice_node["lower"].is_object() &&
+    slice_node["lower"].contains("_type") &&
     slice_node["lower"]["_type"] == "Constant" &&
-    slice_node.contains("upper") && !slice_node["upper"].is_null() &&
-    slice_node["upper"]["_type"] == "Constant")
+    slice_node["lower"].contains("value") &&
+    slice_node.contains("upper") && slice_node["upper"].is_object() &&
+    slice_node["upper"].contains("_type") &&
+    slice_node["upper"]["_type"] == "Constant" &&
+    slice_node["upper"].contains("value"))
   {
     const auto &list_node = json_utils::get_var_value(
       list_value_["value"]["id"],
