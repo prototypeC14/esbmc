@@ -32,7 +32,7 @@ static const std::map<std::string, std::string> builtin_functions = {
   {"round", "int"}, // Can return int or float
   {"min", "Any"},   // Type depends on input
   {"max", "Any"},   // Type depends on input
-  {"sum", "int"},   // Returns int for integer lists
+  {"sum", "Any"},   // Type depends on input
   {"pow", "int"},   // Can return int or float
 
   // Sequence functions

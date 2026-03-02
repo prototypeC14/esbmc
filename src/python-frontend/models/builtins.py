@@ -155,6 +155,18 @@ def sum(iterable: list[int]) -> int:
     return result
 
 
+def sum_float(iterable: list[float]) -> float:
+    """Return the sum of all elements in an iterable of floats."""
+    result: float = 0.0
+    i: int = 0
+    length: int = len(iterable)
+    while i < length:
+        element: float = iterable[i]
+        result = result + element
+        i = i + 1
+    return result
+
+
 def sorted(iterable: list[int]) -> list[int]:
     """Return a new sorted list from the items in iterable."""
     # Create a copy of the list
