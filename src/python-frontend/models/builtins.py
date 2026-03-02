@@ -149,7 +149,8 @@ def sum(iterable: list[int]) -> int:
     i: int = 0
     length: int = len(iterable)
     while i < length:
-        result = result + iterable[i]
+        element: int = iterable[i]
+        result = result + element
         i = i + 1
     return result
 
@@ -160,7 +161,8 @@ def sum_float(iterable: list[float]) -> float:
     i: int = 0
     length: int = len(iterable)
     while i < length:
-        result = result + iterable[i]
+        element: float = iterable[i]
+        result = result + element
         i = i + 1
     return result
 
