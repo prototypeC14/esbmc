@@ -2304,11 +2304,16 @@ symbolt *python_converter::find_function_in_base_classes(
 symbolt *
 python_converter::find_imported_symbol(const std::string &symbol_id) const
 {
-  // Extract the name being looked up from the symbol ID
+  // Extract the name being looked up from the symbol ID.
+  // When the symbol has a class component (e.g. py:main@C@Foo@F@bar),
+  // use the class name for matching against import names, because the
+  // class is what was imported, not individual methods.
   auto parsed = ::symbol_id::from_string(symbol_id);
-  const std::string &lookup_name = parsed.get_function().empty()
-                                     ? parsed.get_object()
-                                     : parsed.get_function();
+  const std::string &lookup_name =
+    !parsed.get_class().empty()
+      ? parsed.get_class()
+      : (parsed.get_function().empty() ? parsed.get_object()
+                                       : parsed.get_function());
 
   for (const auto &obj : (*ast_json)["body"])
   {
@@ -2360,10 +2365,17 @@ symbolt *python_converter::find_symbol(const std::string &sym_id) const
   // When not loading models, check imports first so that user imports
   // (e.g. "from other import sum") shadow builtin model functions that
   // are registered in the main file's namespace.
+  // However, don't let model-module stubs (e.g. esbmc.py's nondet_list
+  // stub) shadow operational models (e.g. nondet.py's nondet_list).
   if (!is_loading_models)
   {
     if (symbolt *imported = find_imported_symbol(sym_id))
-      return imported;
+    {
+      const std::string &imp_id = imported->id.as_string();
+      bool is_model_stub = imp_id.find("/models/") != std::string::npos;
+      if (!is_model_stub || !symbol_table_.find_symbol(sym_id))
+        return imported;
+    }
   }
 
   if (symbolt *symbol = symbol_table_.find_symbol(sym_id))
