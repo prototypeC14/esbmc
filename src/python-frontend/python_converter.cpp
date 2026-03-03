@@ -2325,6 +2325,15 @@ python_converter::find_imported_symbol(const std::string &symbol_id) const
 
 symbolt *python_converter::find_symbol(const std::string &sym_id) const
 {
+  // When not loading models, check imports first so that user imports
+  // (e.g. "from other import sum") shadow builtin model functions that
+  // are registered in the main file's namespace.
+  if (!is_loading_models)
+  {
+    if (symbolt *imported = find_imported_symbol(sym_id))
+      return imported;
+  }
+
   if (symbolt *symbol = symbol_table_.find_symbol(sym_id))
     return symbol;
 
