@@ -2305,7 +2305,7 @@ symbolt *
 python_converter::find_imported_symbol(const std::string &symbol_id) const
 {
   // Extract the name being looked up from the symbol ID
-  symbol_id parsed = symbol_id::from_string(symbol_id);
+  auto parsed = ::symbol_id::from_string(symbol_id);
   const std::string &lookup_name = parsed.get_function().empty()
                                      ? parsed.get_object()
                                      : parsed.get_function();
