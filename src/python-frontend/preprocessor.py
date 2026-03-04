@@ -15,6 +15,7 @@ class Preprocessor(ast.NodeTransformer):
         self.helper_functions_added = False  # Track if helper functions have been added
         self.functionKwonlyParams = {}
         self.listcomp_counter = 0  # Counter for list comprehension temporaries
+        self.builtin_genexpr_counter = 0  # Counter for any/all genexpr temporaries
         self.variable_annotations = {}  # Store full AST annotations
         self.function_return_annotations = {}  # Store function return type annotations
         self.class_attr_annotations = {}  # {class_name: {attr_name: annotation_node}}
@@ -246,6 +247,99 @@ class Preprocessor(ast.NodeTransformer):
 
         return [init_assign] + transformed_for, result_name
 
+    def _lower_builtin_genexpr(self, func_name, genexpr_node, call_node):
+        """Lower any(genexpr) / all(genexpr) into a flag + loop.
+
+        any(elt for target in iter if cond) becomes:
+            ESBMC_any_N: bool = False
+            for target in iter:
+                if cond:
+                    if elt:
+                        ESBMC_any_N = True
+
+        all(elt for target in iter if cond) becomes:
+            ESBMC_all_N: bool = True
+            for target in iter:
+                if cond:
+                    if not elt:
+                        ESBMC_all_N = False
+        """
+        if len(genexpr_node.generators) != 1:
+            raise NotImplementedError("Nested generators in any()/all() are not supported yet")
+
+        generator = genexpr_node.generators[0]
+        if len(getattr(generator, "ifs", [])) > 1:
+            raise NotImplementedError("Only a single if-condition is supported in generator expressions")
+        if getattr(generator, "is_async", False):
+            raise NotImplementedError("Async generator expressions are not supported")
+
+        counter = self.builtin_genexpr_counter
+        self.builtin_genexpr_counter += 1
+        tmp_name = f"ESBMC_{func_name}_{counter}"
+
+        # Initial value: False for any(), True for all()
+        init_val = False if func_name == "any" else True
+        init_assign = ast.AnnAssign(
+            target=self.create_name_node(tmp_name, ast.Store(), call_node),
+            annotation=self.create_name_node("bool", ast.Load(), call_node),
+            value=self.create_constant_node(init_val, call_node),
+            simple=1
+        )
+        self.ensure_all_locations(init_assign, call_node)
+        ast.fix_missing_locations(init_assign)
+
+        # Build the flag assignment: ESBMC_any_N = True (or False for all)
+        flag_assign = ast.Assign(
+            targets=[self.create_name_node(tmp_name, ast.Store(), call_node)],
+            value=self.create_constant_node(not init_val, call_node)
+        )
+        self.ensure_all_locations(flag_assign, call_node)
+
+        # Build the condition test on the element
+        elt = self.visit(genexpr_node.elt)
+        if func_name == "any":
+            test_expr = elt
+        else:
+            # all(): flag becomes False when element is falsy → if not elt
+            test_expr = ast.UnaryOp(op=ast.Not(), operand=elt)
+            self.ensure_all_locations(test_expr, genexpr_node.elt)
+
+        elt_if = ast.If(test=test_expr, body=[flag_assign], orelse=[])
+        self.ensure_all_locations(elt_if, genexpr_node.elt)
+        ast.fix_missing_locations(elt_if)
+
+        loop_body = [elt_if]
+
+        # Wrap in generator filter condition if present
+        if generator.ifs:
+            cond = self.visit(generator.ifs[0])
+            self.ensure_all_locations(cond, generator.ifs[0])
+            filter_if = ast.If(test=cond, body=loop_body, orelse=[])
+            self.ensure_all_locations(filter_if, generator.ifs[0])
+            ast.fix_missing_locations(filter_if)
+            loop_body = [filter_if]
+
+        # Build the for-loop and lower it through the existing for→while machinery
+        for_stmt = ast.For(
+            target=generator.target,
+            iter=self.visit(generator.iter),
+            body=loop_body,
+            orelse=[]
+        )
+        self.ensure_all_locations(for_stmt, call_node)
+        transformed_for = self.visit_For(for_stmt)
+        if not isinstance(transformed_for, list):
+            transformed_for = [transformed_for]
+
+        for stmt in transformed_for:
+            self.ensure_all_locations(stmt, call_node)
+            ast.fix_missing_locations(stmt)
+
+        result_name = self.create_name_node(tmp_name, ast.Load(), call_node)
+        self.ensure_all_locations(result_name, call_node)
+
+        return [init_assign] + transformed_for, result_name
+
     class _ListCompExpressionLowerer(ast.NodeTransformer):
         """Utility transformer that lowers list comprehensions inside an expression."""
 
@@ -259,9 +353,22 @@ class Preprocessor(ast.NodeTransformer):
             self.statements.extend(prefix)
             return result_expr
 
+        def visit_Call(self, node):
+            """Intercept any(genexpr) / all(genexpr) before the generic lowering."""
+            if (isinstance(node.func, ast.Name) and
+                node.func.id in ('any', 'all') and
+                len(node.args) == 1 and
+                isinstance(node.args[0], ast.GeneratorExp) and
+                not node.keywords):
+                prefix, result_expr = self.preprocessor._lower_builtin_genexpr(
+                    node.func.id, node.args[0], node)
+                self.statements.extend(prefix)
+                return result_expr
+            return self.generic_visit(node)
+
         def visit_GeneratorExp(self, node):
-            # Generator expressions have the same structure as list comprehensions
-            # (elt + generators), so reuse the same lowering logic.
+            # Fallback for generator expressions not handled by visit_Call above.
+            # Convert to list comprehension equivalent.
             prefix, result_expr = self.preprocessor._lower_listcomp(node)
             self.statements.extend(prefix)
             return result_expr
