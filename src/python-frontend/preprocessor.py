@@ -259,6 +259,13 @@ class Preprocessor(ast.NodeTransformer):
             self.statements.extend(prefix)
             return result_expr
 
+        def visit_GeneratorExp(self, node):
+            # Generator expressions have the same structure as list comprehensions
+            # (elt + generators), so reuse the same lowering logic.
+            prefix, result_expr = self.preprocessor._lower_listcomp(node)
+            self.statements.extend(prefix)
+            return result_expr
+
     def _lower_listcomp_in_expr(self, expr):
         """Lower all list comprehensions inside an expression node."""
         if expr is None:
