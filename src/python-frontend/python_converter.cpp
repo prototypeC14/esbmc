@@ -5008,8 +5008,8 @@ void python_converter::handle_function_call_rhs(
                   returns["slice"]["id"].get<std::string>());
                 if (elem_type != typet())
                 {
-                  python_list::list_type_map[lhs_id].push_back(
-                    std::make_pair(std::string(), elem_type));
+                  python_list::add_type_info_entry(
+                    lhs_id, std::string(), elem_type);
                 }
               }
             }
