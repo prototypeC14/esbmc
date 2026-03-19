@@ -561,10 +561,36 @@ void ctest_generator::generate() const
   bool cpp_mode = is_cpp_source(source_file);
   std::string test_ext = cpp_mode ? ".cpp" : ".c";
 
+  // Deduplicate: two test cases are identical when their (type, value)
+  // sequences are equal.  Build a fingerprint string and skip duplicates.
+  auto fingerprint = [](const std::vector<test_variable> &tc) {
+    std::string fp;
+    for (const auto &v : tc)
+    {
+      fp += v.verifier_type;
+      fp += '=';
+      fp += v.value;
+      fp += ';';
+    }
+    return fp;
+  };
+
+  std::unordered_set<std::string> seen;
+  std::vector<const std::vector<test_variable> *> unique_cases;
+  for (const auto &tc : test_cases)
+  {
+    if (seen.insert(fingerprint(tc)).second)
+      unique_cases.push_back(&tc);
+  }
+
+  size_t skipped = test_cases.size() - unique_cases.size();
+  if (skipped > 0)
+    log_status("Skipped {} duplicate test case(s).", skipped);
+
   std::vector<std::string> target_names;
   std::vector<std::string> test_file_names;
 
-  for (size_t i = 0; i < test_cases.size(); ++i)
+  for (size_t i = 0; i < unique_cases.size(); ++i)
   {
     std::string target = "test_case_" + std::to_string(i + 1);
     std::string test_file = target + test_ext;
@@ -574,16 +600,16 @@ void ctest_generator::generate() const
     // Build type maps from the collected test variables.
     type_values_t type_values;
     c_types_t c_types;
-    for (const auto &var : test_cases[i])
+    for (const auto &var : *unique_cases[i])
     {
       type_values[var.verifier_type].push_back(var.value);
       c_types[var.verifier_type] = var.c_type;
     }
 
     if (cpp_mode)
-      write_cpp_test_file(test_file, type_values, c_types, i + 1, test_cases.size());
+      write_cpp_test_file(test_file, type_values, c_types, i + 1, unique_cases.size());
     else
-      write_c_test_file(test_file, type_values, c_types, i + 1, test_cases.size());
+      write_c_test_file(test_file, type_values, c_types, i + 1, unique_cases.size());
   }
 
   if (cpp_mode)
@@ -592,7 +618,7 @@ void ctest_generator::generate() const
     write_c_cmake("ESBMCGeneratedTests", source_file, target_names, test_file_names);
 
   log_status(
-    "Generated {} CTest test case(s) with CMakeLists.txt", test_cases.size());
+    "Generated {} CTest test case(s) with CMakeLists.txt", unique_cases.size());
 }
 
 void ctest_generator::generate_single(
