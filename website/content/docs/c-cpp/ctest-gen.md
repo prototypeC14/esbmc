@@ -26,6 +26,7 @@ esbmc program.cpp --branch-coverage --generate-ctest-testcase
 This will generate:
 - `test_case_1.c` / `test_case_1.cpp`, `test_case_2.c` / `test_case_2.cpp`, ... - Test case implementations
 - `CMakeLists.txt` - CMake build configuration
+- `esbmc_verifier.h` - Forward declarations for `__VERIFIER_*` functions (force-included automatically; can also be included manually)
 
 The output file extension (`.c` or `.cpp`) and CMake language (`C` or `CXX`) are determined automatically from the input file extension. Files with `.cpp`, `.cc`, or `.cxx` extensions are treated as C++.
 
@@ -33,14 +34,16 @@ The output file extension (`.c` or `.cpp`) and CMake language (`C` or `CXX`) are
 
 Your code should use `__VERIFIER_nondet_*()` functions to mark symbolic inputs (consistent with SV-COMP).
 
-**Declarations are optional.** ESBMC provides these functions internally during verification, so you do not need to declare them yourself. For C++, ESBMC automatically generates `esbmc_verifier.h` (with `extern "C"` declarations) and force-includes it when building the generated tests, so the build works even if your source file has no declarations at all. If your source file does already declare them, duplicate declarations are harmless. For C, if you compile with a strict C99+ standard (`-std=c99` or later), adding `extern` declarations in your source is recommended to avoid implicit-declaration errors.
+**Declarations are optional.** ESBMC provides these functions internally during verification, so you do not need to declare them yourself. For both C and C++, ESBMC automatically generates `esbmc_verifier.h` and force-includes it when building the generated tests, so the build works even if your source file has no declarations at all. If your source file does already declare them, duplicate declarations are harmless.
+
+If you prefer to be explicit, you can add `#include "esbmc_verifier.h"` at the top of your source file — the header is generated alongside the test cases and is safe to include manually.
 
 **C (`example.c`)**:
 ```c
 #include <stdio.h>
 
-/* Optional in C89/C90; recommended for strict C99+ */
-extern int __VERIFIER_nondet_int(void);
+/* Optional — esbmc_verifier.h is injected automatically at build time.
+   You may also add: #include "esbmc_verifier.h" */
 
 static int compute(int a, int b) {
   if (a > 0) {
@@ -99,7 +102,7 @@ int main() {
 
 Each generated test file provides concrete implementations of `__VERIFIER_nondet_*` and must not define `main()`.
 
-For C++ projects, ESBMC additionally generates `esbmc_verifier.h` containing `extern "C"` forward declarations for every `__VERIFIER_*` function used. The generated `CMakeLists.txt` force-includes this header (via `target_compile_options ... -include`) when compiling the original source file, so the build succeeds regardless of whether the source declares these functions itself.
+For both C and C++ projects, ESBMC also generates `esbmc_verifier.h` containing forward declarations for every `__VERIFIER_*` function. The generated `CMakeLists.txt` force-includes this header (via `target_compile_options ... -include`) when compiling the original source file, so the build succeeds regardless of whether the source declares these functions itself. The header uses `#ifdef __cplusplus` guards so the same file works for both languages.
 
 **C output (`test_case_1.c`)**:
 ```c
@@ -148,6 +151,9 @@ endif()
 # Each test case is compiled with the original source + test case implementation
 add_executable(test_case_1 example.c test_case_1.c)
 add_test(NAME test_case_1 COMMAND test_case_1)
+# Force-include esbmc_verifier.h so the C source gets __VERIFIER_* declarations
+# even if it does not declare them itself (required under strict C99+).
+target_compile_options(test_case_1 PRIVATE -include ${CMAKE_CURRENT_SOURCE_DIR}/esbmc_verifier.h)
 ...
 ```
 
@@ -290,10 +296,8 @@ The CTest generator can format all types supported by ESBMC's symbolic execution
 ```c
 #include <stdio.h>
 
-/* Optional; recommended when compiling with -std=c99 or later */
-extern char __VERIFIER_nondet_char(void);
-extern unsigned char __VERIFIER_nondet_uchar(void);
-extern _Bool __VERIFIER_nondet_bool(void);
+/* Optional — esbmc_verifier.h is injected automatically at build time.
+   You may also add: #include "esbmc_verifier.h" */
 
 int main(void) {
   char c = __VERIFIER_nondet_char();
