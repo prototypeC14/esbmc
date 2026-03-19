@@ -435,7 +435,13 @@ static void write_verifier_header()
   h << "unsigned long long __VERIFIER_nondet_ulong(void);\n";
   h << "float __VERIFIER_nondet_float(void);\n";
   h << "double __VERIFIER_nondet_double(void);\n";
+  h << "/* In C++ 'bool' is a built-in type; in C use _Bool (native C99\n";
+  h << "   type, always available without any #include). */\n";
+  h << "#ifdef __cplusplus\n";
   h << "bool __VERIFIER_nondet_bool(void);\n";
+  h << "#else\n";
+  h << "_Bool __VERIFIER_nondet_bool(void);\n";
+  h << "#endif\n";
   h << "void *__VERIFIER_nondet_pointer(void);\n\n";
   h << "/* Assumption function */\n";
   h << "void __VERIFIER_assume(int cond);\n\n";
