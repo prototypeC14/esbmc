@@ -3768,7 +3768,7 @@ static bool is_excluded_struct_tag(const std::string &tag)
 
 static typet resolve_operand_type(
   const exprt &operand,
-  const symbol_tablet &symbol_table,
+  const contextt &symbol_table,
   const namespacet &ns)
 {
   typet t = operand.type();
