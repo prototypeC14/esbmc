@@ -465,6 +465,25 @@ exprt function_call_expr::handle_isinstance() const
   const auto &obj_arg = args[0];
   const auto &type_arg = args[1];
 
+  // Handle isinstance(None, <type>): None is never an instance of
+  // int/float/bool/str.  Return False immediately unless the target
+  // type is NoneType (handled elsewhere via null-pointer equality).
+  if (
+    obj_arg["_type"] == "Constant" &&
+    (obj_arg["value"].is_null() ||
+     (obj_arg.contains("value") && obj_arg["value"] == nullptr)))
+  {
+    // Extract the target type name; if it is NoneType the existing
+    // build_isinstance path will emit a null-pointer equality check,
+    // so we only short-circuit for non-NoneType targets.
+    std::string tname;
+    if (type_arg["_type"] == "Name")
+      tname = type_arg["id"].get<std::string>();
+
+    if (tname != "NoneType")
+      return false_exprt();
+  }
+
   // Check if the first argument is a type object (e.g., x = int; isinstance(x, str))
   // Type objects themselves are not instances of other types (except 'type')
   if (obj_arg["_type"] == "Name")
