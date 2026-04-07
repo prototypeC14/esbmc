@@ -3783,6 +3783,34 @@ static typet resolve_operand_type(
   return t;
 }
 
+// Check whether the operand type is compatible with the method's "other"
+// parameter, in case the user annotates it with a concrete class type.
+static bool is_other_param_compatible(
+  const code_typet &method_type,
+  const typet &operand_type,
+  const namespacet &ns)
+{
+  const auto &params = method_type.arguments();
+  if (params.size() < 2)
+    return true;
+
+  typet param_type = params[1].type();
+  if (param_type.id() == "symbol")
+    param_type = ns.follow(param_type);
+
+  if (param_type.is_pointer())
+  {
+    typet subtype = param_type.subtype();
+    if (subtype.id() == "symbol")
+      subtype = ns.follow(subtype);
+
+    if (subtype.is_struct() && operand_type.is_struct())
+      return to_struct_type(subtype).tag() ==
+             to_struct_type(operand_type).tag();
+  }
+  return true;
+}
+
 exprt python_converter::dispatch_dunder_operator(
   const std::string &op,
   exprt &lhs,
@@ -3808,13 +3836,16 @@ exprt python_converter::dispatch_dunder_operator(
         if (method)
         {
           const code_typet &method_type = to_code_type(method->type);
-          side_effect_expr_function_callt call;
-          call.function() = symbol_expr(*method);
-          call.type() = method_type.return_type();
-          call.location() = loc;
-          call.arguments().push_back(gen_address_of(lhs));
-          call.arguments().push_back(gen_address_of(rhs));
-          return call;
+          if (is_other_param_compatible(method_type, rhs_type, ns))
+          {
+            side_effect_expr_function_callt call;
+            call.function() = symbol_expr(*method);
+            call.type() = method_type.return_type();
+            call.location() = loc;
+            call.arguments().push_back(gen_address_of(lhs));
+            call.arguments().push_back(gen_address_of(rhs));
+            return call;
+          }
         }
       }
     }
@@ -3836,14 +3867,17 @@ exprt python_converter::dispatch_dunder_operator(
         if (method)
         {
           const code_typet &method_type = to_code_type(method->type);
-          side_effect_expr_function_callt call;
-          call.function() = symbol_expr(*method);
-          call.type() = method_type.return_type();
-          call.location() = loc;
-          // For reflected ops: self=rhs, other=lhs
-          call.arguments().push_back(gen_address_of(rhs));
-          call.arguments().push_back(gen_address_of(lhs));
-          return call;
+          // For reflected: self=rhs, other=lhs
+          if (is_other_param_compatible(method_type, lhs_type, ns))
+          {
+            side_effect_expr_function_callt call;
+            call.function() = symbol_expr(*method);
+            call.type() = method_type.return_type();
+            call.location() = loc;
+            call.arguments().push_back(gen_address_of(rhs));
+            call.arguments().push_back(gen_address_of(lhs));
+            return call;
+          }
         }
       }
     }
