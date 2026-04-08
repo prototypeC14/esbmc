@@ -2891,20 +2891,6 @@ void goto_symext::simplify_python_builtins(expr2tc &expr)
     if (is_address_of2t(value))
       value = to_address_of2t(value).ptr_obj;
 
-    // Handle None: isinstance(None, <type>) is always False.
-    // None is modeled as pointer_typet(bool_typet()) (i.e. bool*).
-    // After address_of unwrapping, class instances become structs,
-    // so only None/null values remain as pointer-to-bool here.
-    if (is_pointer_type(value->type))
-    {
-      const pointer_type2t &ptr = to_pointer_type(value->type);
-      if (is_bool_type(ptr.subtype))
-      {
-        expr = gen_false_expr();
-        return;
-      }
-    }
-
     if (is_struct_type(value))
     {
       // Check if this is a tuple by examining the tag
