@@ -2714,7 +2714,9 @@ class Preprocessor(ast.NodeTransformer):
             'list': 'list',
             'dict': 'dict',
             'set': 'set',
-            'tuple': 'tuple'
+            'tuple': 'tuple',
+            'nondet_list': 'list',
+            'nondet_dict': 'dict',
         }
 
         return call_type_map.get(func_name, 'Any')
