@@ -2870,9 +2870,25 @@ void goto_symext::simplify_python_builtins(expr2tc &expr)
     expr2tc value = obj.side_1;
     expr2tc expect_type = obj.side_2;
 
-    std::cerr << "[isinstance DEBUG] entry: value type_id=" << value->type->type_id
-              << " is_pointer=" << is_pointer_type(value->type)
-              << " is_constant=" << is_constant_int2t(value) << std::endl;
+    // Handle None early, before value_set resolution destroys its
+    // pointer-to-bool type.  None is modeled as pointer_typet(bool_typet()),
+    // which is recognizable here but loses its type after rename/resolution.
+    // isinstance(None, <primitive>) is always False.  For struct targets
+    // (e.g. object) or pointer targets (e.g. NoneType), fall through.
+    if (is_pointer_type(value->type))
+    {
+      const pointer_type2t &ptr = to_pointer_type(value->type);
+      if (is_bool_type(ptr.subtype))
+      {
+        if (
+          !is_struct_type(expect_type->type) &&
+          !is_pointer_type(expect_type->type))
+        {
+          expr = gen_false_expr();
+          return;
+        }
+      }
+    }
 
     value_setst::valuest value_set;
     cur_state->value_set.get_value_set(value, value_set);
@@ -2894,10 +2910,6 @@ void goto_symext::simplify_python_builtins(expr2tc &expr)
 
     if (is_address_of2t(value))
       value = to_address_of2t(value).ptr_obj;
-
-    std::cerr << "[isinstance DEBUG] resolved: value type_id=" << value->type->type_id
-              << " is_pointer=" << is_pointer_type(value->type)
-              << " expect type_id=" << expect_type->type->type_id << std::endl;
 
     if (is_struct_type(value))
     {
