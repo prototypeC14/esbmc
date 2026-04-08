@@ -465,6 +465,26 @@ exprt function_call_expr::handle_isinstance() const
   const auto &obj_arg = args[0];
   const auto &type_arg = args[1];
 
+  // Handle isinstance(None, <type>): None is only an instance of NoneType
+  // (or its supertype object).  For concrete type names that are clearly
+  // incompatible (int, float, bool, str, …) we can short-circuit to False.
+  // This must be handled here at the frontend level because the None
+  // constant loses its pointer-to-bool type information after irep
+  // migration, making it unrecognizable at the goto-symex level.
+  // For type(None), tuples, object, or anything we cannot statically rule
+  // out, fall through to the normal isinstance path.
+  if (
+    obj_arg["_type"] == "Constant" && obj_arg.contains("value") &&
+    obj_arg["value"].is_null())
+  {
+    if (type_arg["_type"] == "Name")
+    {
+      const std::string tname = type_arg["id"].get<std::string>();
+      if (tname != "NoneType" && tname != "object")
+        return false_exprt();
+    }
+  }
+
   // Check if the first argument is a type object (e.g., x = int; isinstance(x, str))
   // Type objects themselves are not instances of other types (except 'type')
   if (obj_arg["_type"] == "Name")
