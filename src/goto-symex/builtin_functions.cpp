@@ -2870,6 +2870,10 @@ void goto_symext::simplify_python_builtins(expr2tc &expr)
     expr2tc value = obj.side_1;
     expr2tc expect_type = obj.side_2;
 
+    std::cerr << "[isinstance DEBUG] entry: value type_id=" << value->type->type_id
+              << " is_pointer=" << is_pointer_type(value->type)
+              << " is_constant=" << is_constant_int2t(value) << std::endl;
+
     value_setst::valuest value_set;
     cur_state->value_set.get_value_set(value, value_set);
 
@@ -2890,6 +2894,10 @@ void goto_symext::simplify_python_builtins(expr2tc &expr)
 
     if (is_address_of2t(value))
       value = to_address_of2t(value).ptr_obj;
+
+    std::cerr << "[isinstance DEBUG] resolved: value type_id=" << value->type->type_id
+              << " is_pointer=" << is_pointer_type(value->type)
+              << " expect type_id=" << expect_type->type->type_id << std::endl;
 
     if (is_struct_type(value))
     {
