@@ -366,11 +366,13 @@ bool __ESBMC_list_contains(
   {
     const PyObject *elem = &l->items[i];
 
-    // Check if types and sizes match
-    if (elem->type_id == item_type_id && elem->size == item_size)
+    // Compare by size and value. The type_id check is intentionally
+    // relaxed because dict iteration may extract keys with a generic
+    // type (Any/void*) that differs from the stored type_id, even
+    // though the underlying value is identical.  Python's "in"
+    // operator is value-based, so this matches Python semantics.
+    if (elem->size == item_size)
     {
-      // Compare the actual data
-      // TODO: Not sure if this works for recursive types
       if (__ESBMC_values_equal(elem->value, item, item_size))
         return true;
     }
