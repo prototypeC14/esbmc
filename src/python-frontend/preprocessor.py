@@ -2772,6 +2772,56 @@ class Preprocessor(ast.NodeTransformer):
             return self._create_dict_annotation(value)
         elif isinstance(value, ast.Subscript):
             return self._create_subscript_annotation(value)
+        elif isinstance(value, ast.Call):
+            return self._create_annotation_from_call(value)
+        return None
+
+    def _create_annotation_from_call(self, call_node):
+        """Infer annotation from known function calls like nondet_dict/nondet_list."""
+        if not isinstance(call_node.func, ast.Name):
+            return None
+        func_name = call_node.func.id
+
+        if func_name == 'nondet_dict':
+            key_t = 'int'
+            val_t = 'int'
+            # Check keyword args for explicit types
+            for kw in call_node.keywords:
+                if kw.arg == 'key_type' and isinstance(kw.value, ast.Call):
+                    key_t = self._nondet_call_to_type(kw.value) or key_t
+                elif kw.arg == 'value_type' and isinstance(kw.value, ast.Call):
+                    val_t = self._nondet_call_to_type(kw.value) or val_t
+            # Check second positional arg (elem_type for list, not used for dict)
+            return ast.Subscript(
+                value=ast.Name(id='dict', ctx=ast.Load()),
+                slice=ast.Tuple(
+                    elts=[ast.Name(id=key_t, ctx=ast.Load()),
+                          ast.Name(id=val_t, ctx=ast.Load())],
+                    ctx=ast.Load()),
+                ctx=ast.Load())
+
+        if func_name == 'nondet_list':
+            elem_t = 'int'
+            # Second positional arg is elem_type
+            if len(call_node.args) >= 2 and isinstance(call_node.args[1], ast.Call):
+                elem_t = self._nondet_call_to_type(call_node.args[1]) or elem_t
+            for kw in call_node.keywords:
+                if kw.arg == 'elem_type' and isinstance(kw.value, ast.Call):
+                    elem_t = self._nondet_call_to_type(kw.value) or elem_t
+            return ast.Subscript(
+                value=ast.Name(id='list', ctx=ast.Load()),
+                slice=ast.Name(id=elem_t, ctx=ast.Load()),
+                ctx=ast.Load())
+
+        return None
+
+    @staticmethod
+    def _nondet_call_to_type(call_node):
+        """Extract type name from nondet_int()/nondet_float()/etc."""
+        if isinstance(call_node, ast.Call) and isinstance(call_node.func, ast.Name):
+            name = call_node.func.id
+            if name.startswith('nondet_'):
+                return name[len('nondet_'):]
         return None
 
     def _create_list_annotation(self, list_node):
