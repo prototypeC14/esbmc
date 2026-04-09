@@ -3631,7 +3631,7 @@ class Preprocessor(ast.NodeTransformer):
             # model behavior to avoid float NaN issues and type mismatch.
             call = node.value
             if call.func.id == 'nondet_dict' and call.keywords:
-                pass  # skip expansion for typed dicts
+                expanded = None  # skip expansion for typed dicts
             else:
                 expanded = self._expand_nondet_call(node.targets[0], call, node)
             if expanded is not None:
