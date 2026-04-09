@@ -2815,6 +2815,10 @@ class Preprocessor(ast.NodeTransformer):
 
         return None
 
+    # Mapping from nondet function suffix to integer type ID.
+    # Must match _T_INT/_T_FLOAT/_T_BOOL/_T_STR in nondet.py.
+    _NONDET_TYPE_IDS = {'int': 0, 'float': 1, 'bool': 2, 'str': 3}
+
     @staticmethod
     def _nondet_call_to_type(call_node):
         """Extract type name from nondet_int()/nondet_float()/etc."""
@@ -2823,6 +2827,37 @@ class Preprocessor(ast.NodeTransformer):
             if name.startswith('nondet_'):
                 return name[len('nondet_'):]
         return None
+
+    @classmethod
+    def _nondet_call_to_type_id(cls, call_node):
+        """Convert nondet_int() → 0, nondet_float() → 1, etc."""
+        type_name = cls._nondet_call_to_type(call_node)
+        if type_name and type_name in cls._NONDET_TYPE_IDS:
+            return cls._NONDET_TYPE_IDS[type_name]
+        return None
+
+    def _rewrite_nondet_type_args(self, node):
+        """Rewrite nondet_list/nondet_dict type arguments from nondet_*()
+        calls to integer type IDs.
+        e.g. nondet_list(8, nondet_bool()) → nondet_list(8, 2)
+             nondet_dict(3, key_type=nondet_str()) → nondet_dict(3, key_type=3)
+        """
+        # Rewrite positional arg (nondet_list's 2nd arg is elem_type)
+        if node.func.id == 'nondet_list' and len(node.args) >= 2:
+            tid = self._nondet_call_to_type_id(node.args[1])
+            if tid is not None:
+                node.args[1] = ast.Constant(value=tid)
+                self.ensure_all_locations(node.args[1], node)
+
+        # Rewrite keyword args (key_type, value_type, elem_type)
+        for kw in node.keywords:
+            if kw.arg in ('key_type', 'value_type', 'elem_type'):
+                tid = self._nondet_call_to_type_id(kw.value)
+                if tid is not None:
+                    kw.value = ast.Constant(value=tid)
+                    self.ensure_all_locations(kw.value, node)
+
+        return node
 
     def _create_list_annotation(self, list_node):
         """Create list[T] annotation from a list literal"""
@@ -3592,6 +3627,12 @@ class Preprocessor(ast.NodeTransformer):
                     node.args[1] = ast.Constant(value=True)
                 else:
                     node.args[1] = ast.Constant(value=False)
+
+        # Rewrite nondet_list/nondet_dict type arguments from nondet_*() calls
+        # to integer type IDs so the model receives concrete constants.
+        # e.g. nondet_list(8, nondet_bool()) → nondet_list(8, 2)
+        if isinstance(node.func, ast.Name) and node.func.id in ('nondet_list', 'nondet_dict'):
+            node = self._rewrite_nondet_type_args(node)
 
         # Determine if this is a method call or function call
         functionName = None

@@ -13,12 +13,15 @@ USAGE:
     d = nondet_dict(5)                                   # int->int dict, size [0, 5]
     d = nondet_dict(key_type=nondet_str(), value_type=nondet_float())
     d = nondet_dict(max_size=10, key_type=nondet_int(), value_type=nondet_bool())
+
+Note: The preprocessor rewrites nondet_*() type arguments to integer
+constants (0=int, 1=float, 2=bool, 3=str) before this model runs.
 """
 
 # Shared default maximum size for nondet collections
 _DEFAULT_NONDET_SIZE: int = 8
 
-# Type flags (concrete constants, resolved before any loop)
+# Type IDs — must match the preprocessor's _nondet_call_to_type_id mapping
 _T_INT: int = 0
 _T_FLOAT: int = 1
 _T_BOOL: int = 2
@@ -33,42 +36,29 @@ def _nondet_size(max_size: int) -> int:
     return size
 
 
-def _type_flag(sample) -> int:
-    """Determine a concrete type flag from a sample nondet value.
-    Evaluated once before the loop; the result is a plain int constant."""
-    if isinstance(sample, float):
-        return _T_FLOAT
-    if isinstance(sample, bool):
-        return _T_BOOL
-    if isinstance(sample, str):
-        return _T_STR
-    return _T_INT
-
-
-def nondet_list(max_size: int = _DEFAULT_NONDET_SIZE, elem_type=None) -> list:
+def nondet_list(max_size: int = _DEFAULT_NONDET_SIZE, elem_type: int = 0) -> list:
     """
     Return a non-deterministic list where each element is a fresh nondet value.
 
     Args:
         max_size: Maximum size of the list (default: 8).
-        elem_type: A sample value from nondet_int/float/bool/str (default: int).
+        elem_type: Type ID for elements (0=int, 1=float, 2=bool, 3=str).
+                   The preprocessor rewrites nondet_int()/float()/bool()/str()
+                   to the corresponding integer before this function is called.
     """
-    tf: int = _type_flag(elem_type)
-
     result: list = []
     size: int = _nondet_size(max_size)
 
-    # Each branch has its own loop with a single nondet call — no branching inside the loop.
     i: int = 0
-    if tf == _T_FLOAT:
+    if elem_type == _T_FLOAT:
         while i < size:
             result.append(nondet_float())
             i = i + 1
-    elif tf == _T_BOOL:
+    elif elem_type == _T_BOOL:
         while i < size:
             result.append(nondet_bool())
             i = i + 1
-    elif tf == _T_STR:
+    elif elem_type == _T_STR:
         while i < size:
             result.append(nondet_str())
             i = i + 1
@@ -81,39 +71,34 @@ def nondet_list(max_size: int = _DEFAULT_NONDET_SIZE, elem_type=None) -> list:
 
 
 def nondet_dict(max_size: int = _DEFAULT_NONDET_SIZE,
-                key_type=None,
-                value_type=None) -> dict:
+                key_type: int = 0,
+                value_type: int = 0) -> dict:
     """
     Return a non-deterministic dictionary where each entry has fresh nondet key and value.
 
     Args:
         max_size: Maximum size of the dictionary (default: 8).
-        key_type: A sample value from nondet_int/str/bool (default: int).
-        value_type: A sample value from nondet_int/float/bool/str (default: int).
+        key_type: Type ID for keys (0=int, 2=bool, 3=str).
+        value_type: Type ID for values (0=int, 1=float, 2=bool, 3=str).
+                    The preprocessor rewrites nondet_*() to integers.
     """
-    kt: int = _type_flag(key_type)
-    vt: int = _type_flag(value_type)
-
     result: dict = {}
     size: int = _nondet_size(max_size)
 
-    # The flag comparisons (kt == X, vt == X) use concrete int constants,
-    # so dead branches are trivially eliminated — only the matching
-    # nondet call survives in the unrolled loop body.
     i: int = 0
     while i < size:
-        if kt == _T_STR:
+        if key_type == _T_STR:
             k = nondet_str()
-        elif kt == _T_BOOL:
+        elif key_type == _T_BOOL:
             k = nondet_bool()
         else:
             k = nondet_int()
 
-        if vt == _T_FLOAT:
+        if value_type == _T_FLOAT:
             v = nondet_float()
-        elif vt == _T_BOOL:
+        elif value_type == _T_BOOL:
             v = nondet_bool()
-        elif vt == _T_STR:
+        elif value_type == _T_STR:
             v = nondet_str()
         else:
             v = nondet_int()
