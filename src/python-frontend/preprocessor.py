@@ -3068,9 +3068,9 @@ class Preprocessor(ast.NodeTransformer):
         self.ensure_all_locations(idx_assign, loc)
         stmts.append(idx_assign)
 
-        # 4. while i < size: body; i = i + 1
+        # 4. Build loop body
         if func_name == 'nondet_list':
-            # x.append(nondet_T())
+            # while i < size: x.append(nondet_T()); i = i + 1
             append_call = ast.Expr(value=ast.Call(
                 func=ast.Attribute(
                     value=name(var_name),
@@ -3079,35 +3079,99 @@ class Preprocessor(ast.NodeTransformer):
                 keywords=[]))
             self.ensure_all_locations(append_call, loc)
             body_stmt = append_call
+
+            inc = ast.Assign(
+                targets=[name(idx_var, ast.Store())],
+                value=ast.BinOp(
+                    left=name(idx_var), op=ast.Add(), right=const(1)))
+            self.ensure_all_locations(inc, loc)
+
+            while_stmt = ast.While(
+                test=ast.Compare(
+                    left=name(idx_var),
+                    ops=[ast.Lt()],
+                    comparators=[name(size_var)]),
+                body=[body_stmt, inc],
+                orelse=[])
+            self.ensure_all_locations(while_stmt, loc)
+            stmts.append(while_stmt)
         else:
-            # x[i] = nondet_V()  — use loop index as concrete key to avoid
-            # symbolic key comparison explosion in the solver.  Values are
-            # still fully nondeterministic.
-            dict_assign = ast.Assign(
-                targets=[ast.Subscript(
-                    value=name(var_name),
-                    slice=name(idx_var),
-                    ctx=ast.Store())],
-                value=call_node(val_func))
-            self.ensure_all_locations(dict_assign, loc)
-            body_stmt = dict_assign
+            # Dict: use if-chain with append + assume uniqueness.
+            # Avoids the O(N²) contains search that causes solver explosion.
+            # Each entry has a nondet key with __ESBMC_assume(ki != kj) to
+            # guarantee uniqueness via lightweight symbolic constraints.
+            max_entries = 8  # default
+            if isinstance(max_size_node, ast.Constant) and isinstance(max_size_node.value, int):
+                max_entries = max_size_node.value
 
-        # i = i + 1
-        inc = ast.Assign(
-            targets=[name(idx_var, ast.Store())],
-            value=ast.BinOp(
-                left=name(idx_var), op=ast.Add(), right=const(1)))
-        self.ensure_all_locations(inc, loc)
+            key_vars = []
+            for entry_idx in range(max_entries):
+                # Guard: if size >= entry_idx + 1
+                guard = ast.Compare(
+                    left=name(size_var),
+                    ops=[ast.GtE()],
+                    comparators=[const(entry_idx + 1)])
 
-        while_stmt = ast.While(
-            test=ast.Compare(
-                left=name(idx_var),
-                ops=[ast.Lt()],
-                comparators=[name(size_var)]),
-            body=[body_stmt, inc],
-            orelse=[])
-        self.ensure_all_locations(while_stmt, loc)
-        stmts.append(while_stmt)
+                body_block = []
+
+                # k_N = nondet_K()
+                kvar = f'__nd_k_{uid}_{entry_idx}'
+                k_assign = ast.AnnAssign(
+                    target=name(kvar, ast.Store()),
+                    annotation=name(key_type_name),
+                    value=call_node(key_func),
+                    simple=1)
+                self.ensure_all_locations(k_assign, loc)
+                body_block.append(k_assign)
+
+                # __ESBMC_assume(k_N != k_0), __ESBMC_assume(k_N != k_1), ...
+                for prev_kvar in key_vars:
+                    assume = ast.Expr(value=ast.Call(
+                        func=name('__ESBMC_assume'),
+                        args=[ast.Compare(
+                            left=name(kvar),
+                            ops=[ast.NotEq()],
+                            comparators=[name(prev_kvar)])],
+                        keywords=[]))
+                    self.ensure_all_locations(assume, loc)
+                    body_block.append(assume)
+
+                key_vars.append(kvar)
+
+                # x.keys().append(k_N)
+                keys_append = ast.Expr(value=ast.Call(
+                    func=ast.Attribute(
+                        value=ast.Call(
+                            func=ast.Attribute(
+                                value=name(var_name),
+                                attr='keys', ctx=ast.Load()),
+                            args=[], keywords=[]),
+                        attr='append', ctx=ast.Load()),
+                    args=[name(kvar)],
+                    keywords=[]))
+                self.ensure_all_locations(keys_append, loc)
+                body_block.append(keys_append)
+
+                # x.values().append(nondet_V())
+                vals_append = ast.Expr(value=ast.Call(
+                    func=ast.Attribute(
+                        value=ast.Call(
+                            func=ast.Attribute(
+                                value=name(var_name),
+                                attr='values', ctx=ast.Load()),
+                            args=[], keywords=[]),
+                        attr='append', ctx=ast.Load()),
+                    args=[call_node(val_func)],
+                    keywords=[]))
+                self.ensure_all_locations(vals_append, loc)
+                body_block.append(vals_append)
+
+                if_stmt = ast.If(
+                    test=guard,
+                    body=body_block,
+                    orelse=[])
+                self.ensure_all_locations(if_stmt, loc)
+                stmts.append(if_stmt)
 
         for s in stmts:
             ast.fix_missing_locations(s)
