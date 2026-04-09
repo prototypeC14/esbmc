@@ -300,10 +300,6 @@ const struct group_opt_templ all_cmd_options[] = {
        "fun"),
      "Replace function calls with contract semantics (use \"*\" for all "
      "functions)"},
-    {"assume-nonnull-valid",
-     nullptr,
-     "In --enforce-contract mode, assume non-null pointer parameters are valid "
-     "objects"},
     {"enforce-all-contracts",
      nullptr,
      "Enforce contracts for all functions marked with __ESBMC_contract"},
@@ -405,7 +401,11 @@ const struct group_opt_templ all_cmd_options[] = {
      "Verify using loop invariant + k-induction (combined mode)"},
     {"loop-invariant-check",
      NULL,
-     "Verify using loop invariant inductive check (standalone mode)"}}},
+     "Verify using loop invariant inductive check (standalone mode)"},
+    {"loop-frame-rule",
+     NULL,
+     "Enable frame rule for loop invariant checking "
+     "(snapshot-havoc-assume pattern, requires --loop-invariant-check)"}}},
   {"Concurrency and Scheduling",
    {{"schedule", NULL, "Use schedule recording approach"},
     {"context-bound",
@@ -629,7 +629,11 @@ const struct group_opt_templ all_cmd_options[] = {
      "Assume integers will not overflow (Integers)"},
     {"interval-analysis-narrowing",
      NULL,
-     "Enable narrowing in abstract states (Integers and Reals)"}}},
+     "Enable narrowing in abstract states (Integers and Reals)"},
+    {"interval-symex-guard",
+     NULL,
+     "Use interval-based guard pruning during symbolic execution to stop "
+     "loop unrolling when the guard becomes provably unsatisfiable"}}},
   {"Coverage options",
    {
      {"assertion-coverage", NULL, "Show the coverage of assertion statements"},

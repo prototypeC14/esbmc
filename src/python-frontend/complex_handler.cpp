@@ -271,6 +271,8 @@ exprt complex_handler::handle_binary_op(
       return "*";
     if (op_name == "Div")
       return "/";
+    if (op_name == "Pow")
+      return "**";
     return op_name;
   };
 
@@ -404,6 +406,25 @@ exprt complex_handler::handle_binary_op(
         "complex exponent out of supported integer range");
     }
 
+    const long exponent = exponent_big.to_int64();
+
+    // Budget limit: for |exponent| > 16, inline binary-exponentiation
+    // creates too many IR nodes (each complex_mul is ~8 IEEE ops).
+    // Fall back to exp(n * log(z)) which produces a fixed-size IR tree.
+    static constexpr long MAX_COMPLEX_POW_INLINE = 16;
+
+    if (exponent > MAX_COMPLEX_POW_INLINE || exponent < -MAX_COMPLEX_POW_INLINE)
+    {
+      const typet &dt = cached_double_type();
+      exprt exp_complex =
+        promote_to_complex(from_double(static_cast<double>(exponent), dt));
+      exprt lhs_log = complex_log(lhs_complex, element);
+      if (lhs_log.statement() == "cpp-throw")
+        return lhs_log;
+      exprt product = complex_mul(exp_complex, lhs_log);
+      return complex_exp(product, element);
+    }
+
     auto pow_nonnegative = [&](unsigned long long exponent_abs) -> exprt {
       const typet &dt = cached_double_type();
       exprt acc = make_complex(from_double(1.0, dt), from_double(0.0, dt));
@@ -422,7 +443,6 @@ exprt complex_handler::handle_binary_op(
       return acc;
     };
 
-    const long exponent = exponent_big.to_int64();
     if (exponent >= 0)
       return pow_nonnegative(static_cast<unsigned long long>(exponent));
 
@@ -513,6 +533,8 @@ exprt complex_handler::handle_unary_op(
   if (op == "UAdd")
     return operand;
 
+  assert(op == "USub" && "handle_unary_op: unexpected operator");
+
   // USub: negate both components.
   const typet &dt = cached_double_type();
   exprt real = member_exprt(operand, "real", dt);
@@ -562,6 +584,29 @@ exprt complex_handler::handle_attribute(const nlohmann::json &element) const
   exprt neg_imag("ieee_sub", dt);
   neg_imag.copy_to_operands(zero, imag);
   return make_complex(real, neg_imag);
+}
+
+// -----------------------------------------------------------------------
+
+exprt complex_handler::handle_attribute_access(
+  const exprt &obj,
+  const std::string &attr) const
+{
+  if (attr != "real" && attr != "imag")
+    return nil_exprt();
+
+  // If the operand is pointer-to-complex (e.g. Optional[complex]),
+  // dereference it before building the member access.
+  exprt base = obj;
+  if (base.type().is_pointer())
+  {
+    exprt deref("dereference");
+    deref.type() = base.type().subtype();
+    deref.move_to_operands(base);
+    base = std::move(deref);
+  }
+
+  return member_exprt(base, attr, cached_double_type());
 }
 
 // -----------------------------------------------------------------------
