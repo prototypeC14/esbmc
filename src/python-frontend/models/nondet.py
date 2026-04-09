@@ -1,6 +1,14 @@
 """
 Operational model for non-deterministic collection functions in ESBMC Python frontend.
 
+NOTE: The preprocessor (preprocessor.py) expands nondet_list() and nondet_dict()
+calls inline BEFORE this model runs. The expanded code generates fresh nondet
+values per element/entry and uses concrete sequential keys for dicts to avoid
+solver explosion. The model functions below serve as fallback for non-expanded
+contexts (e.g. indirect calls) and as documentation of the intended API.
+
+See preprocessor.py _expand_nondet_call() for the actual expansion logic.
+
 USAGE:
     # Lists:
     x = nondet_list()                                    # int list, size [0, 8]
