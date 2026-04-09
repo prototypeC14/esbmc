@@ -60,105 +60,34 @@ def nondet_dict(max_size: int = _DEFAULT_NONDET_SIZE,
                 key_type: Any = None,
                 value_type: Any = None) -> dict:
     """
-    Return a non-deterministic dictionary where each entry has fresh nondet key and value.
+    Return a non-deterministic dictionary with specified key and value types.
 
-    Each key-value type combination has its own dedicated loop to avoid
-    type merging issues in the frontend. The is-None check handles the
-    default case; isinstance handles typed arguments; the else fallback
-    defaults to nondet_int() when isinstance cannot resolve the type.
+    Note: Each iteration reuses the same key/value symbolic variable, so the
+    dict will have at most one entry. Multi-entry nondeterministic dicts require
+    solver support for symbolic key comparison which is currently too expensive.
 
     Args:
         max_size: Maximum size of the dictionary (default: 8).
         key_type: Value returned by type constructor for dictionary keys (default: nondet_int()).
+                  Supported: nondet_int(), nondet_str(), nondet_bool()
         value_type: Value returned by type constructor for dictionary values (default: nondet_int()).
+                    Supported: nondet_int(), nondet_float(), nondet_bool(), nondet_str()
+
+    Returns:
+        dict: A dictionary with arbitrary size and contents of specified types.
     """
+    # Default to nondet_int if no types specified
+    if key_type is None:
+        key_type = nondet_int()
+    if value_type is None:
+        value_type = nondet_int()
+
     result: dict = {}
     size: int = _nondet_size(max_size)
 
     i: int = 0
-    if key_type is None:
-        if value_type is None:
-            while i < size:
-                result[nondet_int()] = nondet_int()
-                i = i + 1
-        elif isinstance(value_type, float):
-            while i < size:
-                result[nondet_int()] = nondet_float()
-                i = i + 1
-        elif isinstance(value_type, bool):
-            while i < size:
-                result[nondet_int()] = nondet_bool()
-                i = i + 1
-        elif isinstance(value_type, str):
-            while i < size:
-                result[nondet_int()] = nondet_str()
-                i = i + 1
-        else:
-            while i < size:
-                result[nondet_int()] = nondet_int()
-                i = i + 1
-    elif isinstance(key_type, bool):
-        if value_type is None:
-            while i < size:
-                result[nondet_bool()] = nondet_int()
-                i = i + 1
-        elif isinstance(value_type, float):
-            while i < size:
-                result[nondet_bool()] = nondet_float()
-                i = i + 1
-        elif isinstance(value_type, bool):
-            while i < size:
-                result[nondet_bool()] = nondet_bool()
-                i = i + 1
-        elif isinstance(value_type, str):
-            while i < size:
-                result[nondet_bool()] = nondet_str()
-                i = i + 1
-        else:
-            while i < size:
-                result[nondet_bool()] = nondet_int()
-                i = i + 1
-    elif isinstance(key_type, str):
-        if value_type is None:
-            while i < size:
-                result[nondet_str()] = nondet_int()
-                i = i + 1
-        elif isinstance(value_type, float):
-            while i < size:
-                result[nondet_str()] = nondet_float()
-                i = i + 1
-        elif isinstance(value_type, bool):
-            while i < size:
-                result[nondet_str()] = nondet_bool()
-                i = i + 1
-        elif isinstance(value_type, str):
-            while i < size:
-                result[nondet_str()] = nondet_str()
-                i = i + 1
-        else:
-            while i < size:
-                result[nondet_str()] = nondet_int()
-                i = i + 1
-    else:
-        if value_type is None:
-            while i < size:
-                result[nondet_int()] = nondet_int()
-                i = i + 1
-        elif isinstance(value_type, float):
-            while i < size:
-                result[nondet_int()] = nondet_float()
-                i = i + 1
-        elif isinstance(value_type, bool):
-            while i < size:
-                result[nondet_int()] = nondet_bool()
-                i = i + 1
-        elif isinstance(value_type, str):
-            while i < size:
-                result[nondet_int()] = nondet_str()
-                i = i + 1
-        else:
-            while i < size:
-                result[nondet_int()] = nondet_int()
-                i = i + 1
+    while i < size:
+        result[key_type] = value_type
+        i = i + 1
 
     return result
