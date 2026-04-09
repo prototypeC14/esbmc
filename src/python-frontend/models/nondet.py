@@ -91,67 +91,26 @@ def nondet_dict(max_size: int = _DEFAULT_NONDET_SIZE,
             i = i + 1
         return result
 
-    # Default case: fresh int keys/values via direct append.
-    # Skips contains search; uniqueness guaranteed by __ESBMC_assume.
-    k0: int = nondet_int()
-    k1: int = nondet_int()
-    k2: int = nondet_int()
-    k3: int = nondet_int()
-    k4: int = nondet_int()
-    k5: int = nondet_int()
-    k6: int = nondet_int()
-    k7: int = nondet_int()
+    # Default case: use concrete sequential keys (0,1,2,...) to avoid
+    # the O(N²) symbolic key comparison that causes solver explosion.
+    # No loop needed — if-chain with concrete keys means contains
+    # checks are trivially decidable (1!=0, 2!=0, 2!=1, etc.).
+    # Values are fully nondeterministic.
     if size >= 1:
-        result.keys().append(k0)
-        result.values().append(nondet_int())
+        result[0] = nondet_int()
     if size >= 2:
-        __ESBMC_assume(k1 != k0)
-        result.keys().append(k1)
-        result.values().append(nondet_int())
+        result[1] = nondet_int()
     if size >= 3:
-        __ESBMC_assume(k2 != k0)
-        __ESBMC_assume(k2 != k1)
-        result.keys().append(k2)
-        result.values().append(nondet_int())
+        result[2] = nondet_int()
     if size >= 4:
-        __ESBMC_assume(k3 != k0)
-        __ESBMC_assume(k3 != k1)
-        __ESBMC_assume(k3 != k2)
-        result.keys().append(k3)
-        result.values().append(nondet_int())
+        result[3] = nondet_int()
     if size >= 5:
-        __ESBMC_assume(k4 != k0)
-        __ESBMC_assume(k4 != k1)
-        __ESBMC_assume(k4 != k2)
-        __ESBMC_assume(k4 != k3)
-        result.keys().append(k4)
-        result.values().append(nondet_int())
+        result[4] = nondet_int()
     if size >= 6:
-        __ESBMC_assume(k5 != k0)
-        __ESBMC_assume(k5 != k1)
-        __ESBMC_assume(k5 != k2)
-        __ESBMC_assume(k5 != k3)
-        __ESBMC_assume(k5 != k4)
-        result.keys().append(k5)
-        result.values().append(nondet_int())
+        result[5] = nondet_int()
     if size >= 7:
-        __ESBMC_assume(k6 != k0)
-        __ESBMC_assume(k6 != k1)
-        __ESBMC_assume(k6 != k2)
-        __ESBMC_assume(k6 != k3)
-        __ESBMC_assume(k6 != k4)
-        __ESBMC_assume(k6 != k5)
-        result.keys().append(k6)
-        result.values().append(nondet_int())
+        result[6] = nondet_int()
     if size >= 8:
-        __ESBMC_assume(k7 != k0)
-        __ESBMC_assume(k7 != k1)
-        __ESBMC_assume(k7 != k2)
-        __ESBMC_assume(k7 != k3)
-        __ESBMC_assume(k7 != k4)
-        __ESBMC_assume(k7 != k5)
-        __ESBMC_assume(k7 != k6)
-        result.keys().append(k7)
-        result.values().append(nondet_int())
+        result[7] = nondet_int()
 
     return result
