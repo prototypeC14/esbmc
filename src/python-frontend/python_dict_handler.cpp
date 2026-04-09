@@ -896,12 +896,15 @@ void python_dict_handler::handle_dict_subscript_assign(
   // Create the "key exists" branch: update existing value
   code_blockt update_block;
 
-  // Find __ESBMC_list_find_index function
+  // Use try_find_index (returns SIZE_MAX on miss) instead of find_index
+  // (which asserts). In BMC the solver may not prove that a prior
+  // contains==true guarantees find_index succeeds, so the assert(0)
+  // can be spuriously reachable with symbolic keys.
   const symbolt *find_func =
-    symbol_table_.find_symbol("c:@F@__ESBMC_list_find_index");
+    symbol_table_.find_symbol("c:@F@__ESBMC_list_try_find_index");
   if (!find_func)
     throw std::runtime_error(
-      "__ESBMC_list_find_index not found - add it to list.c model");
+      "__ESBMC_list_try_find_index not found - add it to list.c model");
 
   // Find __ESBMC_list_set_at function
   const symbolt *set_func =
@@ -1086,12 +1089,13 @@ void python_dict_handler::handle_dict_delete(
   // Create the "then" branch: perform the actual deletion
   code_blockt delete_block;
 
-  // Find __ESBMC_list_find_index function
+  // Use try_find_index instead of find_index to avoid spurious
+  // assert(0) failures in BMC with symbolic keys.
   const symbolt *find_func =
-    symbol_table_.find_symbol("c:@F@__ESBMC_list_find_index");
+    symbol_table_.find_symbol("c:@F@__ESBMC_list_try_find_index");
   if (!find_func)
     throw std::runtime_error(
-      "__ESBMC_list_find_index not found - add it to list.c model");
+      "__ESBMC_list_try_find_index not found - add it to list.c model");
 
   // Find __ESBMC_list_remove_at function
   const symbolt *remove_func =
