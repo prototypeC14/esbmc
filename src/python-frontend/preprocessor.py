@@ -2714,17 +2714,8 @@ class Preprocessor(ast.NodeTransformer):
             'list': 'list',
             'dict': 'dict',
             'set': 'set',
-            'tuple': 'tuple',
-            'nondet_list': 'list',
-            'nondet_float_list': 'list',
-            'nondet_bool_list': 'list',
-            'nondet_str_list': 'list',
-            'nondet_dict': 'dict',
+            'tuple': 'tuple'
         }
-
-        # All nondet_dict_*_* variants are dicts
-        if func_name.startswith('nondet_dict_'):
-            return 'dict'
 
         return call_type_map.get(func_name, 'Any')
 
@@ -2779,109 +2770,6 @@ class Preprocessor(ast.NodeTransformer):
             return self._create_dict_annotation(value)
         elif isinstance(value, ast.Subscript):
             return self._create_subscript_annotation(value)
-        elif isinstance(value, ast.Call):
-            return self._create_annotation_from_call(value)
-        return None
-
-    def _create_annotation_from_call(self, call_node):
-        """Infer annotation from known function calls like nondet_dict/nondet_list."""
-        if not isinstance(call_node.func, ast.Name):
-            return None
-        func_name = call_node.func.id
-
-        if func_name == 'nondet_dict':
-            key_t = 'int'
-            val_t = 'int'
-            # Check keyword args for explicit types
-            for kw in call_node.keywords:
-                if kw.arg == 'key_type' and isinstance(kw.value, ast.Call):
-                    key_t = self._nondet_call_to_type(kw.value) or key_t
-                elif kw.arg == 'value_type' and isinstance(kw.value, ast.Call):
-                    val_t = self._nondet_call_to_type(kw.value) or val_t
-            # Check second positional arg (elem_type for list, not used for dict)
-            return ast.Subscript(
-                value=ast.Name(id='dict', ctx=ast.Load()),
-                slice=ast.Tuple(
-                    elts=[ast.Name(id=key_t, ctx=ast.Load()),
-                          ast.Name(id=val_t, ctx=ast.Load())],
-                    ctx=ast.Load()),
-                ctx=ast.Load())
-
-        if func_name == 'nondet_list':
-            elem_t = 'int'
-            # Second positional arg is elem_type
-            if len(call_node.args) >= 2 and isinstance(call_node.args[1], ast.Call):
-                elem_t = self._nondet_call_to_type(call_node.args[1]) or elem_t
-            for kw in call_node.keywords:
-                if kw.arg == 'elem_type' and isinstance(kw.value, ast.Call):
-                    elem_t = self._nondet_call_to_type(kw.value) or elem_t
-            return ast.Subscript(
-                value=ast.Name(id='list', ctx=ast.Load()),
-                slice=ast.Name(id=elem_t, ctx=ast.Load()),
-                ctx=ast.Load())
-
-        return None
-
-    @staticmethod
-    def _nondet_call_to_type(call_node):
-        """Extract type name from nondet_int()/nondet_float()/etc.
-        Returns 'int', 'float', 'bool', 'str', or None."""
-        if isinstance(call_node, ast.Call) and isinstance(call_node.func, ast.Name):
-            name = call_node.func.id
-            if name.startswith('nondet_'):
-                return name[len('nondet_'):]
-        return None
-
-    def _rewrite_nondet_call(self, node):
-        """Dispatch typed nondet_list/nondet_dict calls to type-specific
-        model functions. Returns the rewritten node, or None if no rewrite.
-        e.g. nondet_list(8, nondet_bool())  → nondet_bool_list(8)
-             nondet_dict(3, key_type=nondet_str(), value_type=nondet_float())
-               → nondet_dict_str_float(3)
-        """
-        func_name = node.func.id
-
-        if func_name == 'nondet_list':
-            elem_t = 'int'
-            # Check 2nd positional arg
-            if len(node.args) >= 2:
-                t = self._nondet_call_to_type(node.args[1])
-                if t:
-                    elem_t = t
-                node.args = [node.args[0]]  # keep only max_size
-            # Check keyword arg
-            for kw in node.keywords[:]:
-                if kw.arg == 'elem_type':
-                    t = self._nondet_call_to_type(kw.value)
-                    if t:
-                        elem_t = t
-                    node.keywords.remove(kw)
-            # Dispatch: nondet_list stays for int, others get renamed
-            if elem_t != 'int':
-                node.func = ast.Name(id=f'nondet_{elem_t}_list', ctx=ast.Load())
-                self.ensure_all_locations(node.func, node)
-            return node
-
-        if func_name == 'nondet_dict':
-            key_t = 'int'
-            val_t = 'int'
-            for kw in node.keywords[:]:
-                if kw.arg == 'key_type':
-                    t = self._nondet_call_to_type(kw.value)
-                    if t:
-                        key_t = t
-                    node.keywords.remove(kw)
-                elif kw.arg == 'value_type':
-                    t = self._nondet_call_to_type(kw.value)
-                    if t:
-                        val_t = t
-                    node.keywords.remove(kw)
-            # Dispatch: nondet_dict stays for int->int, others get renamed
-            if key_t != 'int' or val_t != 'int':
-                node.func = ast.Name(id=f'nondet_dict_{key_t}_{val_t}', ctx=ast.Load())
-                self.ensure_all_locations(node.func, node)
-            return node
-
         return None
 
     def _create_list_annotation(self, list_node):
@@ -3652,14 +3540,6 @@ class Preprocessor(ast.NodeTransformer):
                     node.args[1] = ast.Constant(value=True)
                 else:
                     node.args[1] = ast.Constant(value=False)
-
-        # Rewrite typed nondet_list/nondet_dict calls to dispatch to
-        # type-specific model functions.
-        # e.g. nondet_list(8, nondet_bool()) → nondet_bool_list(8)
-        #      nondet_dict(3, key_type=nondet_str(), value_type=nondet_float())
-        #        → nondet_dict_str_float(3)
-        if isinstance(node.func, ast.Name) and node.func.id in ('nondet_list', 'nondet_dict'):
-            self._rewrite_nondet_call(node)
 
         # Determine if this is a method call or function call
         functionName = None
