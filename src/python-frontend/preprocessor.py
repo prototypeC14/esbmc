@@ -2785,7 +2785,9 @@ class Preprocessor(ast.NodeTransformer):
             'list': 'list',
             'dict': 'dict',
             'set': 'set',
-            'tuple': 'tuple'
+            'tuple': 'tuple',
+            'nondet_list': 'list',
+            'nondet_dict': 'dict',
         }
 
         return call_type_map.get(func_name, 'Any')
@@ -2860,6 +2862,53 @@ class Preprocessor(ast.NodeTransformer):
             return self._create_dict_annotation(value)
         elif isinstance(value, ast.Subscript):
             return self._create_subscript_annotation(value)
+        elif isinstance(value, ast.Call):
+            return self._create_annotation_from_call(value)
+        return None
+
+    def _create_annotation_from_call(self, call_node):
+        """Create annotation from known function calls (nondet_dict/nondet_list)."""
+        if not isinstance(call_node.func, ast.Name):
+            return None
+        func_name = call_node.func.id
+
+        if func_name == 'nondet_dict':
+            key_t = 'int'
+            val_t = 'int'
+            for kw in call_node.keywords:
+                if kw.arg == 'key_type' and isinstance(kw.value, ast.Call):
+                    key_t = self._nondet_call_to_type(kw.value) or key_t
+                elif kw.arg == 'value_type' and isinstance(kw.value, ast.Call):
+                    val_t = self._nondet_call_to_type(kw.value) or val_t
+            return ast.Subscript(
+                value=ast.Name(id='dict', ctx=ast.Load()),
+                slice=ast.Tuple(
+                    elts=[ast.Name(id=key_t, ctx=ast.Load()),
+                          ast.Name(id=val_t, ctx=ast.Load())],
+                    ctx=ast.Load()),
+                ctx=ast.Load())
+
+        if func_name == 'nondet_list':
+            elem_t = 'int'
+            if len(call_node.args) >= 2 and isinstance(call_node.args[1], ast.Call):
+                elem_t = self._nondet_call_to_type(call_node.args[1]) or elem_t
+            for kw in call_node.keywords:
+                if kw.arg == 'elem_type' and isinstance(kw.value, ast.Call):
+                    elem_t = self._nondet_call_to_type(kw.value) or elem_t
+            return ast.Subscript(
+                value=ast.Name(id='list', ctx=ast.Load()),
+                slice=ast.Name(id=elem_t, ctx=ast.Load()),
+                ctx=ast.Load())
+
+        return None
+
+    @staticmethod
+    def _nondet_call_to_type(call_node):
+        """Extract the type name from `nondet_*()` calls."""
+        if isinstance(call_node, ast.Call) and isinstance(call_node.func, ast.Name):
+            name = call_node.func.id
+            if name.startswith('nondet_'):
+                return name[len('nondet_'):]
         return None
 
     def _expand_nondet_call(self, target, call, source_node):
@@ -3534,7 +3583,7 @@ class Preprocessor(ast.NodeTransformer):
         if (len(node.targets) == 1 and isinstance(node.targets[0], ast.Name)
                 and isinstance(node.value, ast.Call)
                 and isinstance(node.value.func, ast.Name)
-                and node.value.func.id in ('nondet_list', 'nondet_dict')):
+                and node.value.func.id == 'nondet_list'):
             expanded = self._expand_nondet_call(node.targets[0], node.value, node)
             if expanded is not None:
                 return expanded
