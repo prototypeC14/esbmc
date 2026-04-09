@@ -3659,9 +3659,7 @@ class Preprocessor(ast.NodeTransformer):
         #      nondet_dict(3, key_type=nondet_str(), value_type=nondet_float())
         #        → nondet_dict_str_float(3)
         if isinstance(node.func, ast.Name) and node.func.id in ('nondet_list', 'nondet_dict'):
-            rewritten = self._rewrite_nondet_call(node)
-            if rewritten is not None:
-                return rewritten
+            self._rewrite_nondet_call(node)
 
         # Determine if this is a method call or function call
         functionName = None
