@@ -3627,21 +3627,7 @@ class Preprocessor(ast.NodeTransformer):
                 and isinstance(node.value.func, ast.Name)
                 and node.value.func.id in ('nondet_list', 'nondet_dict')):
             # Only expand nondet_dict without typed keyword args.
-            # Typed dicts (key_type=nondet_str(), etc.) keep the original
-            # model behavior to avoid float NaN issues and type mismatch.
-            call = node.value
-            # Skip dict expansion when value_type is float — multi-entry
-            # float dicts expose NaN != NaN issues in solver identity checks.
-            has_float_value = False
-            if call.func.id == 'nondet_dict':
-                for kw in call.keywords:
-                    if kw.arg == 'value_type' and isinstance(kw.value, ast.Call):
-                        if isinstance(kw.value.func, ast.Name) and kw.value.func.id == 'nondet_float':
-                            has_float_value = True
-            if has_float_value:
-                expanded = None
-            else:
-                expanded = self._expand_nondet_call(node.targets[0], call, node)
+            expanded = self._expand_nondet_call(node.targets[0], node.value, node)
             if expanded is not None:
                 return expanded
 
