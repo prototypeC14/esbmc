@@ -3080,11 +3080,13 @@ class Preprocessor(ast.NodeTransformer):
             self.ensure_all_locations(append_call, loc)
             body_stmt = append_call
         else:
-            # x[nondet_K()] = nondet_V()
+            # x[i] = nondet_V()  — use loop index as concrete key to avoid
+            # symbolic key comparison explosion in the solver.  Values are
+            # still fully nondeterministic.
             dict_assign = ast.Assign(
                 targets=[ast.Subscript(
                     value=name(var_name),
-                    slice=call_node(key_func),
+                    slice=name(idx_var),
                     ctx=ast.Store())],
                 value=call_node(val_func))
             self.ensure_all_locations(dict_assign, loc)
@@ -3583,7 +3585,7 @@ class Preprocessor(ast.NodeTransformer):
         if (len(node.targets) == 1 and isinstance(node.targets[0], ast.Name)
                 and isinstance(node.value, ast.Call)
                 and isinstance(node.value.func, ast.Name)
-                and node.value.func.id == 'nondet_list'):
+                and node.value.func.id in ('nondet_list', 'nondet_dict')):
             expanded = self._expand_nondet_call(node.targets[0], node.value, node)
             if expanded is not None:
                 return expanded
