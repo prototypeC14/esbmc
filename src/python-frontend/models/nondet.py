@@ -88,18 +88,20 @@ def nondet_dict(max_size: int = _DEFAULT_NONDET_SIZE,
         d = nondet_dict(key_type=nondet_str(), value_type=nondet_float())
         d = nondet_dict(max_size=10, key_type=nondet_int(), value_type=nondet_bool())
     """
-    # Default to nondet_int if no types specified
-    if key_type is None:
-        key_type = nondet_int()
-    if value_type is None:
-        value_type = nondet_int()
-
     result: dict = {}
     size: int = _nondet_size(max_size)
 
     i: int = 0
     while i < size:
-        result[key_type] = value_type
+        if key_type is None:
+            k = nondet_int()
+        else:
+            k = key_type
+        if value_type is None:
+            v = nondet_int()
+        else:
+            v = value_type
+        result[k] = v
         i = i + 1
 
     return result
