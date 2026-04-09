@@ -96,15 +96,40 @@ def nondet_dict(max_size: int = _DEFAULT_NONDET_SIZE,
         d = nondet_dict(key_type=nondet_str(), value_type=nondet_float())
         d = nondet_dict(max_size=10, key_type=nondet_int(), value_type=nondet_bool())
     """
-    # Default to nondet_int if no types specified
+    result: dict = {}
+    size: int = _nondet_size(max_size)
+
+    if key_type is None and value_type is None:
+        # Default int->int: use concrete sequential keys (0,1,2,...) so
+        # the contains check in the dict model is trivially decidable.
+        # A loop with symbolic keys would cause O(N²) solver explosion.
+        # Each value is a fresh nondet_int().
+        # For typed cases, the preprocessor expands the call with the
+        # correct nondet_*() and concrete key type before this runs.
+        if size >= 1:
+            result[0] = nondet_int()
+        if size >= 2:
+            result[1] = nondet_int()
+        if size >= 3:
+            result[2] = nondet_int()
+        if size >= 4:
+            result[3] = nondet_int()
+        if size >= 5:
+            result[4] = nondet_int()
+        if size >= 6:
+            result[5] = nondet_int()
+        if size >= 7:
+            result[6] = nondet_int()
+        if size >= 8:
+            result[7] = nondet_int()
+        return result
+
+    # Typed case: preprocessor expands this path with correct types.
+    # Fallback: original single-entry behavior.
     if key_type is None:
         key_type = nondet_int()
     if value_type is None:
         value_type = nondet_int()
-
-    result: dict = {}
-    size: int = _nondet_size(max_size)
-
     i: int = 0
     while i < size:
         result[key_type] = value_type
