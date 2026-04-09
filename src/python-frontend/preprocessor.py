@@ -3626,7 +3626,14 @@ class Preprocessor(ast.NodeTransformer):
                 and isinstance(node.value, ast.Call)
                 and isinstance(node.value.func, ast.Name)
                 and node.value.func.id in ('nondet_list', 'nondet_dict')):
-            expanded = self._expand_nondet_call(node.targets[0], node.value, node)
+            # Only expand nondet_dict without typed keyword args.
+            # Typed dicts (key_type=nondet_str(), etc.) keep the original
+            # model behavior to avoid float NaN issues and type mismatch.
+            call = node.value
+            if call.func.id == 'nondet_dict' and call.keywords:
+                pass  # skip expansion for typed dicts
+            else:
+                expanded = self._expand_nondet_call(node.targets[0], call, node)
             if expanded is not None:
                 return expanded
 
