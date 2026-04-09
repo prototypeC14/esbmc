@@ -3068,9 +3068,9 @@ class Preprocessor(ast.NodeTransformer):
         self.ensure_all_locations(idx_assign, loc)
         stmts.append(idx_assign)
 
-        # 4. while i < size: body; i = i + 1
+        # 4. Build the collection
         if func_name == 'nondet_list':
-            # x.append(nondet_T())
+            # List: while loop with append — no search, O(N).
             append_call = ast.Expr(value=ast.Call(
                 func=ast.Attribute(
                     value=name(var_name),
@@ -3078,41 +3078,81 @@ class Preprocessor(ast.NodeTransformer):
                 args=[call_node(elem_func)],
                 keywords=[]))
             self.ensure_all_locations(append_call, loc)
-            body_stmt = append_call
+
+            inc = ast.Assign(
+                targets=[name(idx_var, ast.Store())],
+                value=ast.BinOp(
+                    left=name(idx_var), op=ast.Add(), right=const(1)))
+            self.ensure_all_locations(inc, loc)
+
+            while_stmt = ast.While(
+                test=ast.Compare(
+                    left=name(idx_var),
+                    ops=[ast.Lt()],
+                    comparators=[name(size_var)]),
+                body=[append_call, inc],
+                orelse=[])
+            self.ensure_all_locations(while_stmt, loc)
+            stmts.append(while_stmt)
         else:
-            # x[i] = nondet_V()  — use loop index as concrete key to avoid
-            # symbolic key comparison explosion in the solver.  Values are
-            # still fully nondeterministic.
-            dict_assign = ast.Assign(
-                targets=[ast.Subscript(
-                    value=name(var_name),
-                    slice=name(idx_var),
-                    ctx=ast.Store())],
-                value=call_node(val_func))
-            self.ensure_all_locations(dict_assign, loc)
-            body_stmt = dict_assign
+            # Dict: if-chain with concrete keys — avoids solver explosion.
+            #
+            # Dict subscript d[k]=v triggers an O(N) contains search per
+            # insertion.  With symbolic keys in a loop this becomes O(N²)
+            # symbolic comparisons that overwhelm the solver.
+            #
+            # Using concrete sequential keys (0,1,2,... / False,True /
+            # "0","1",...) makes every contains check trivially decidable.
+            # An if-chain (no loop) avoids unwind overhead entirely.
+            # Values remain fully nondeterministic.
+            #
+            # TODO: Once the ESBMC dict C model supports efficient
+            # symbolic key insertion (e.g. hash-based), this can be
+            # replaced with a simple loop like nondet_list.
+            max_entries = 8  # _DEFAULT_NONDET_SIZE
+            if isinstance(max_size_node, ast.Constant) and isinstance(max_size_node.value, int):
+                max_entries = max_size_node.value
 
-        # i = i + 1
-        inc = ast.Assign(
-            targets=[name(idx_var, ast.Store())],
-            value=ast.BinOp(
-                left=name(idx_var), op=ast.Add(), right=const(1)))
-        self.ensure_all_locations(inc, loc)
+            for entry_idx in range(max_entries):
+                concrete_key = self._make_concrete_key(key_type_name, entry_idx, loc)
+                dict_assign = ast.Assign(
+                    targets=[ast.Subscript(
+                        value=name(var_name),
+                        slice=concrete_key,
+                        ctx=ast.Store())],
+                    value=call_node(val_func))
+                self.ensure_all_locations(dict_assign, loc)
 
-        while_stmt = ast.While(
-            test=ast.Compare(
-                left=name(idx_var),
-                ops=[ast.Lt()],
-                comparators=[name(size_var)]),
-            body=[body_stmt, inc],
-            orelse=[])
-        self.ensure_all_locations(while_stmt, loc)
-        stmts.append(while_stmt)
+                if_stmt = ast.If(
+                    test=ast.Compare(
+                        left=name(size_var),
+                        ops=[ast.GtE()],
+                        comparators=[const(entry_idx + 1)]),
+                    body=[dict_assign],
+                    orelse=[])
+                self.ensure_all_locations(if_stmt, loc)
+                stmts.append(if_stmt)
 
         for s in stmts:
             ast.fix_missing_locations(s)
 
         return stmts
+
+    def _make_concrete_key(self, key_type_name, index, loc):
+        """Generate a concrete key AST node for dict if-chain expansion.
+        int  → 0, 1, 2, ...
+        bool → False, True  (wraps at 2)
+        str  → "0", "1", "2", ...
+        """
+        if key_type_name == 'bool':
+            val = bool(index % 2)
+        elif key_type_name == 'str':
+            val = str(index)
+        else:
+            val = index
+        nd = ast.Constant(value=val)
+        self.ensure_all_locations(nd, loc)
+        return nd
 
     def _create_list_annotation(self, list_node):
         """Create list[T] annotation from a list literal"""
@@ -3585,7 +3625,7 @@ class Preprocessor(ast.NodeTransformer):
         if (len(node.targets) == 1 and isinstance(node.targets[0], ast.Name)
                 and isinstance(node.value, ast.Call)
                 and isinstance(node.value.func, ast.Name)
-                and node.value.func.id == 'nondet_list'):
+                and node.value.func.id in ('nondet_list', 'nondet_dict')):
             expanded = self._expand_nondet_call(node.targets[0], node.value, node)
             if expanded is not None:
                 return expanded
