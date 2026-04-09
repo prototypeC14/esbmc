@@ -2716,8 +2716,15 @@ class Preprocessor(ast.NodeTransformer):
             'set': 'set',
             'tuple': 'tuple',
             'nondet_list': 'list',
+            'nondet_float_list': 'list',
+            'nondet_bool_list': 'list',
+            'nondet_str_list': 'list',
             'nondet_dict': 'dict',
         }
+
+        # All nondet_dict_*_* variants are dicts
+        if func_name.startswith('nondet_dict_'):
+            return 'dict'
 
         return call_type_map.get(func_name, 'Any')
 
@@ -2815,49 +2822,67 @@ class Preprocessor(ast.NodeTransformer):
 
         return None
 
-    # Mapping from nondet function suffix to integer type ID.
-    # Must match _T_INT/_T_FLOAT/_T_BOOL/_T_STR in nondet.py.
-    _NONDET_TYPE_IDS = {'int': 0, 'float': 1, 'bool': 2, 'str': 3}
-
     @staticmethod
     def _nondet_call_to_type(call_node):
-        """Extract type name from nondet_int()/nondet_float()/etc."""
+        """Extract type name from nondet_int()/nondet_float()/etc.
+        Returns 'int', 'float', 'bool', 'str', or None."""
         if isinstance(call_node, ast.Call) and isinstance(call_node.func, ast.Name):
             name = call_node.func.id
             if name.startswith('nondet_'):
                 return name[len('nondet_'):]
         return None
 
-    @classmethod
-    def _nondet_call_to_type_id(cls, call_node):
-        """Convert nondet_int() → 0, nondet_float() → 1, etc."""
-        type_name = cls._nondet_call_to_type(call_node)
-        if type_name and type_name in cls._NONDET_TYPE_IDS:
-            return cls._NONDET_TYPE_IDS[type_name]
-        return None
-
-    def _rewrite_nondet_type_args(self, node):
-        """Rewrite nondet_list/nondet_dict type arguments from nondet_*()
-        calls to integer type IDs.
-        e.g. nondet_list(8, nondet_bool()) → nondet_list(8, 2)
-             nondet_dict(3, key_type=nondet_str()) → nondet_dict(3, key_type=3)
+    def _rewrite_nondet_call(self, node):
+        """Dispatch typed nondet_list/nondet_dict calls to type-specific
+        model functions. Returns the rewritten node, or None if no rewrite.
+        e.g. nondet_list(8, nondet_bool())  → nondet_bool_list(8)
+             nondet_dict(3, key_type=nondet_str(), value_type=nondet_float())
+               → nondet_dict_str_float(3)
         """
-        # Rewrite positional arg (nondet_list's 2nd arg is elem_type)
-        if node.func.id == 'nondet_list' and len(node.args) >= 2:
-            tid = self._nondet_call_to_type_id(node.args[1])
-            if tid is not None:
-                node.args[1] = ast.Constant(value=tid)
-                self.ensure_all_locations(node.args[1], node)
+        func_name = node.func.id
 
-        # Rewrite keyword args (key_type, value_type, elem_type)
-        for kw in node.keywords:
-            if kw.arg in ('key_type', 'value_type', 'elem_type'):
-                tid = self._nondet_call_to_type_id(kw.value)
-                if tid is not None:
-                    kw.value = ast.Constant(value=tid)
-                    self.ensure_all_locations(kw.value, node)
+        if func_name == 'nondet_list':
+            elem_t = 'int'
+            # Check 2nd positional arg
+            if len(node.args) >= 2:
+                t = self._nondet_call_to_type(node.args[1])
+                if t:
+                    elem_t = t
+                node.args = [node.args[0]]  # keep only max_size
+            # Check keyword arg
+            for kw in node.keywords[:]:
+                if kw.arg == 'elem_type':
+                    t = self._nondet_call_to_type(kw.value)
+                    if t:
+                        elem_t = t
+                    node.keywords.remove(kw)
+            # Dispatch: nondet_list stays for int, others get renamed
+            if elem_t != 'int':
+                node.func = ast.Name(id=f'nondet_{elem_t}_list', ctx=ast.Load())
+                self.ensure_all_locations(node.func, node)
+            return node
 
-        return node
+        if func_name == 'nondet_dict':
+            key_t = 'int'
+            val_t = 'int'
+            for kw in node.keywords[:]:
+                if kw.arg == 'key_type':
+                    t = self._nondet_call_to_type(kw.value)
+                    if t:
+                        key_t = t
+                    node.keywords.remove(kw)
+                elif kw.arg == 'value_type':
+                    t = self._nondet_call_to_type(kw.value)
+                    if t:
+                        val_t = t
+                    node.keywords.remove(kw)
+            # Dispatch: nondet_dict stays for int->int, others get renamed
+            if key_t != 'int' or val_t != 'int':
+                node.func = ast.Name(id=f'nondet_dict_{key_t}_{val_t}', ctx=ast.Load())
+                self.ensure_all_locations(node.func, node)
+            return node
+
+        return None
 
     def _create_list_annotation(self, list_node):
         """Create list[T] annotation from a list literal"""
@@ -3628,11 +3653,15 @@ class Preprocessor(ast.NodeTransformer):
                 else:
                     node.args[1] = ast.Constant(value=False)
 
-        # Rewrite nondet_list/nondet_dict type arguments from nondet_*() calls
-        # to integer type IDs so the model receives concrete constants.
-        # e.g. nondet_list(8, nondet_bool()) → nondet_list(8, 2)
+        # Rewrite typed nondet_list/nondet_dict calls to dispatch to
+        # type-specific model functions.
+        # e.g. nondet_list(8, nondet_bool()) → nondet_bool_list(8)
+        #      nondet_dict(3, key_type=nondet_str(), value_type=nondet_float())
+        #        → nondet_dict_str_float(3)
         if isinstance(node.func, ast.Name) and node.func.id in ('nondet_list', 'nondet_dict'):
-            node = self._rewrite_nondet_type_args(node)
+            rewritten = self._rewrite_nondet_call(node)
+            if rewritten is not None:
+                return rewritten
 
         # Determine if this is a method call or function call
         functionName = None
