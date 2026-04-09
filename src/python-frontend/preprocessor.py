@@ -3585,7 +3585,7 @@ class Preprocessor(ast.NodeTransformer):
         if (len(node.targets) == 1 and isinstance(node.targets[0], ast.Name)
                 and isinstance(node.value, ast.Call)
                 and isinstance(node.value.func, ast.Name)
-                and node.value.func.id in ('nondet_list', 'nondet_dict')):
+                and node.value.func.id == 'nondet_list'):
             expanded = self._expand_nondet_call(node.targets[0], node.value, node)
             if expanded is not None:
                 return expanded
