@@ -2890,6 +2890,22 @@ void goto_symext::simplify_python_builtins(expr2tc &expr)
       }
     }
 
+    // For primitive types (int, float, bool, str), the type is reliably
+    // known at entry but may be lost during value_set resolution and
+    // SSA renaming.  Compare early while the type is still intact.
+    // Struct and pointer types need the full resolution path below for
+    // subclass checks and object identity.
+    if (
+      !is_pointer_type(value->type) && !is_struct_type(value->type) &&
+      !is_nil_type(value->type))
+    {
+      if (base_type_eq(value->type, expect_type->type, ns))
+        expr = gen_true_expr();
+      else
+        expr = gen_false_expr();
+      return;
+    }
+
     value_setst::valuest value_set;
     cur_state->value_set.get_value_set(value, value_set);
 
