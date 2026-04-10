@@ -2912,27 +2912,28 @@ class Preprocessor(ast.NodeTransformer):
         return None
 
     def _expand_nondet_call(self, target, call, source_node):
-        """Expand a nondet_list/nondet_dict call into an inline loop.
+        """Expand a nondet_list/nondet_dict call into inline code.
 
-        x = nondet_list(3, nondet_bool()) becomes:
-            x: list[bool] = []
-            __nd_size_0: int = nondet_int()
-            __ESBMC_assume(__nd_size_0 >= 0)
-            __ESBMC_assume(__nd_size_0 <= 3)
-            __nd_i_0: int = 0
-            while __nd_i_0 < __nd_size_0:
-                x.append(nondet_bool())
-                __nd_i_0 = __nd_i_0 + 1
+        nondet_list uses a while loop with fresh nondet values per element:
+            x = nondet_list(3, nondet_bool())  -->
+                x: list[bool] = []
+                __nd_size_0: int = nondet_int()
+                __ESBMC_assume(__nd_size_0 >= 0)
+                __ESBMC_assume(__nd_size_0 <= 3)
+                __nd_i_0: int = 0
+                while __nd_i_0 < __nd_size_0:
+                    x.append(nondet_bool())
+                    __nd_i_0 = __nd_i_0 + 1
 
-        x = nondet_dict(2, key_type=nondet_str(), value_type=nondet_float()) becomes:
-            x: dict[str, float] = {}
-            __nd_size_0: int = nondet_int()
-            __ESBMC_assume(__nd_size_0 >= 0)
-            __ESBMC_assume(__nd_size_0 <= 2)
-            __nd_i_0: int = 0
-            while __nd_i_0 < __nd_size_0:
-                x[nondet_str()] = nondet_float()
-                __nd_i_0 = __nd_i_0 + 1
+        nondet_dict uses an if-chain with concrete sequential keys to avoid
+        O(N^2) solver explosion from symbolic key comparisons:
+            x = nondet_dict(2, key_type=nondet_str(), value_type=nondet_float())  -->
+                x: dict[str, float] = {}
+                __nd_size_0: int = nondet_int()
+                __ESBMC_assume(__nd_size_0 >= 0)
+                __ESBMC_assume(__nd_size_0 <= 2)
+                if __nd_size_0 >= 1: x["0"] = nondet_float()
+                if __nd_size_0 >= 2: x["1"] = nondet_float()
         """
         uid = self.nondet_expand_counter
         self.nondet_expand_counter += 1
@@ -3618,12 +3619,8 @@ class Preprocessor(ast.NodeTransformer):
         # First visit child nodes
         node = self.generic_visit(node)
 
-        # Expand nondet_list/nondet_dict calls inline.
-        # e.g. x = nondet_list(3, nondet_bool()) becomes:
-        #   x: list[bool] = []
-        #   __nd_size_0 = nondet_int(); assume(>=0); assume(<=3)
-        #   __nd_i_0 = 0
-        #   while __nd_i_0 < __nd_size_0: x.append(nondet_bool()); ...
+        # Expand nondet_list/nondet_dict calls inline so each element/entry
+        # gets a fresh nondet value. See _expand_nondet_call for details.
         if (len(node.targets) == 1 and isinstance(node.targets[0], ast.Name)
                 and isinstance(node.value, ast.Call)
                 and isinstance(node.value.func, ast.Name)
