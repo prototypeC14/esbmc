@@ -1,54 +1,31 @@
 """
 Operational model for non-deterministic collection functions in ESBMC Python frontend.
 
-KNOWN LIMITATION — WHY THE FIX IS IN THE PREPROCESSOR, NOT HERE:
+KNOWN LIMITATIONS:
 
-The functions below reuse a single nondet value for all elements (e.g.
-result.append(elem_type) appends the same symbolic value every iteration).
-The correct fix — calling nondet_int()/nondet_float()/etc. fresh inside
-the loop — cannot be done in this file due to three ESBMC frontend issues:
+  nondet_list: Cannot be fixed in this file due to ESBMC frontend issues.
+    The preprocessor (preprocessor.py::_expand_nondet_call) expands
+    nondet_list calls inline as user code, generating fresh nondet values
+    per element with correct types. This is necessary because:
+      1. Branch type mixing: the frontend processes ALL if/elif branches
+         when converting this model file (is_loading_models=true). Multiple
+         result.append() calls with different types pollute list_type_map,
+         causing "unresolved operand type" errors on element access.
+      2. Parameter type erasure: unannotated parameters get type void*,
+         so isinstance cannot determine the actual argument type.
+         (python_converter.cpp:8069 — arg_type = any_type())
+    Only direct assignments (x = nondet_list(...)) are expanded.
+    Other contexts (return values, nested expressions) use the model
+    function below as fallback (original single-value behavior).
 
-  1. Parameter type erasure: unannotated parameters get type void*.
-     isinstance(elem_type, bool) always sees void*, not the actual type.
-     (python_converter.cpp:8069 — arg_type = any_type())
-
-  2. Branch type mixing: the frontend processes ALL if/elif branches
-     when converting this model file (is_loading_models=true). Multiple
-     result.append() calls with different types pollute list_type_map,
-     causing "unresolved operand type" errors on element access.
-
-  3. Model loading context: code in this file is converted to IR once
-     during model loading and stored in the symbol table. Unlike user
-     code (is_loading_models=false), the converted IR is not re-processed
-     at call time, so runtime conditions cannot influence type tracking.
-
-The preprocessor (preprocessor.py::_expand_nondet_call) works around all
-three by expanding nondet_list/nondet_dict calls inline as user code,
-where fresh nondet values and correct types are generated directly.
-
-EXPANSION DETAILS:
-
-  nondet_list: expanded as a while loop with fresh nondet_*() per iteration.
-    x = nondet_list(3, nondet_bool())  →
-      x: list[bool] = []
-      __nd_size: int = nondet_int(); assume(0 <= size <= 3)
-      while __nd_i < __nd_size: x.append(nondet_bool()); __nd_i += 1
-
-  nondet_dict: expanded as an if-chain with concrete sequential keys
-    (0, 1, 2, ... for int; False, True for bool; "0", "1", ... for str).
-    Symbolic keys would cause O(N²) solver explosion from the dict model's
-    contains/find_index search. Concrete keys make these checks trivially
-    decidable. Values remain fully nondeterministic.
-    x = nondet_dict(3)  →
-      x: dict[int, int] = {}
-      __nd_size: int = nondet_int(); assume(0 <= size <= 3)
-      if __nd_size >= 1: x[0] = nondet_int()
-      if __nd_size >= 2: x[1] = nondet_int()
-      if __nd_size >= 3: x[2] = nondet_int()
-
-  Only direct assignments (x = nondet_list/dict(...)) are expanded.
-  Other contexts (return values, nested expressions) use the model
-  functions below as fallback (original single-value behavior).
+  nondet_dict: Fixed directly in this file using is-None checks.
+    The default case (key_type=None, value_type=None) generates fresh
+    nondet_int() keys and values each iteration, allowing multiple entries.
+    For typed cases, the passed value is reused (original single-entry
+    behavior) because isinstance cannot determine the parameter type.
+    Note: symbolic keys cause O(N²) solver complexity from the dict model's
+    contains/find_index search. Use --unwind 3 for dict tests to keep
+    solver performance manageable.
 
 USAGE:
     # Lists:
@@ -56,7 +33,7 @@ USAGE:
     x = nondet_list(5)                                   # int list, size [0, 5]
     x = nondet_list(elem_type=nondet_float())                 # float list, size [0, 8]
     x = nondet_list(max_size=10, elem_type=nondet_bool())     # bool list, size [0, 10]
-    
+
     # Dictionaries:
     d = nondet_dict()                                    # int->int dict, size [0, 8]
     d = nondet_dict(5)                                   # int->int dict, size [0, 5]
@@ -89,13 +66,18 @@ def _nondet_size(max_size: int) -> int:
 def nondet_list(max_size: int = _DEFAULT_NONDET_SIZE, elem_type: Any = None) -> list:
     """
     Return a non-deterministic list with specified element type.
-    
+
+    Note: The preprocessor expands this call inline so that each element
+    gets a fresh nondeterministic value. This model function body is the
+    original (unfixed) fallback for non-expanded contexts. See the
+    KNOWN LIMITATIONS note at the top of this file for details.
+
     Args:
         max_size: Maximum size of the list (default: 8).
                   The actual size will be in range [0, max_size].
         elem_type: Value returned by type constructor for list elements (default: nondet_int()).
                    Supported: nondet_int(), nondet_float(), nondet_bool(), nondet_str()
-    
+
     Returns:
         list: A list with arbitrary size and contents of specified type.
     """
@@ -120,6 +102,12 @@ def nondet_dict(max_size: int = _DEFAULT_NONDET_SIZE,
     """
     Return a non-deterministic dictionary with specified key and value types.
 
+    For the default case (no type args), each iteration generates fresh
+    nondet_int() keys and values, allowing the dict to have multiple
+    distinct entries. For typed cases, the passed value is reused each
+    iteration (single-entry behavior) because isinstance cannot determine
+    the parameter type due to frontend type erasure (void*).
+
     Args:
         max_size: Maximum size of the dictionary (default: 8).
                   The actual size will be in range [0, max_size].
@@ -137,18 +125,22 @@ def nondet_dict(max_size: int = _DEFAULT_NONDET_SIZE,
         d = nondet_dict(key_type=nondet_str(), value_type=nondet_float())
         d = nondet_dict(max_size=10, key_type=nondet_int(), value_type=nondet_bool())
     """
-    # Default to nondet_int if no types specified
-    if key_type is None:
-        key_type = nondet_int()
-    if value_type is None:
-        value_type = nondet_int()
-
     result: dict = {}
     size: int = _nondet_size(max_size)
 
     i: int = 0
     while i < size:
-        result[key_type] = value_type
+        # Default case: generate fresh keys/values each iteration.
+        # Typed case: reuse passed value (original single-entry behavior).
+        if key_type is None:
+            k = nondet_int()
+        else:
+            k = key_type
+        if value_type is None:
+            v = nondet_int()
+        else:
+            v = value_type
+        result[k] = v
         i = i + 1
 
     return result
