@@ -26,6 +26,30 @@ The preprocessor (preprocessor.py::_expand_nondet_call) works around all
 three by expanding nondet_list/nondet_dict calls inline as user code,
 where fresh nondet values and correct types are generated directly.
 
+EXPANSION DETAILS:
+
+  nondet_list: expanded as a while loop with fresh nondet_*() per iteration.
+    x = nondet_list(3, nondet_bool())  →
+      x: list[bool] = []
+      __nd_size: int = nondet_int(); assume(0 <= size <= 3)
+      while __nd_i < __nd_size: x.append(nondet_bool()); __nd_i += 1
+
+  nondet_dict: expanded as an if-chain with concrete sequential keys
+    (0, 1, 2, ... for int; False, True for bool; "0", "1", ... for str).
+    Symbolic keys would cause O(N²) solver explosion from the dict model's
+    contains/find_index search. Concrete keys make these checks trivially
+    decidable. Values remain fully nondeterministic.
+    x = nondet_dict(3)  →
+      x: dict[int, int] = {}
+      __nd_size: int = nondet_int(); assume(0 <= size <= 3)
+      if __nd_size >= 1: x[0] = nondet_int()
+      if __nd_size >= 2: x[1] = nondet_int()
+      if __nd_size >= 3: x[2] = nondet_int()
+
+  Only direct assignments (x = nondet_list/dict(...)) are expanded.
+  Other contexts (return values, nested expressions) use the model
+  functions below as fallback (original single-value behavior).
+
 USAGE:
     # Lists:
     x = nondet_list()                                    # int list, size [0, 8]
