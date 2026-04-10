@@ -16,7 +16,7 @@ KNOWN LIMITATIONS — WHY FIXES ARE IN THE PREPROCESSOR:
           result[nondet_int()] = nondet_int()   # fresh key and value
 
   However, these fixes cannot be implemented in this model file due to
-  three ESBMC frontend limitations:
+  two ESBMC frontend limitations:
 
     1. Branch type mixing (affects list only): the frontend processes ALL
        if/elif branches when converting model files (is_loading_models=true).
@@ -27,12 +27,8 @@ KNOWN LIMITATIONS — WHY FIXES ARE IN THE PREPROCESSOR:
        so isinstance(elem_type, bool) always sees void* regardless of
        the actual argument. (python_converter.cpp:8069)
 
-    3. Type merging: assigning different types to the same variable in
-       different branches (e.g. k = nondet_int() vs k = key_type)
-       triggers if2t type assertions in the IR.
-
   The preprocessor (preprocessor.py::_expand_nondet_call) works around
-  all three by expanding calls inline as user code:
+  both by expanding calls inline as user code:
 
     nondet_list: while loop with fresh nondet_*() per iteration.
       x = nondet_list(3, nondet_bool())  -->
