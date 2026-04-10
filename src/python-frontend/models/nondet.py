@@ -1,31 +1,57 @@
 """
 Operational model for non-deterministic collection functions in ESBMC Python frontend.
 
-KNOWN LIMITATIONS:
+KNOWN LIMITATIONS — WHY FIXES ARE IN THE PREPROCESSOR:
 
-  nondet_list: Cannot be fixed in this file due to ESBMC frontend issues.
-    The preprocessor (preprocessor.py::_expand_nondet_call) expands
-    nondet_list calls inline as user code, generating fresh nondet values
-    per element with correct types. This is necessary because:
-      1. Branch type mixing: the frontend processes ALL if/elif branches
-         when converting this model file (is_loading_models=true). Multiple
-         result.append() calls with different types pollute list_type_map,
-         causing "unresolved operand type" errors on element access.
-      2. Parameter type erasure: unannotated parameters get type void*,
-         so isinstance cannot determine the actual argument type.
-         (python_converter.cpp:8069 — arg_type = any_type())
-    Only direct assignments (x = nondet_list(...)) are expanded.
-    Other contexts (return values, nested expressions) use the model
-    function below as fallback (original single-value behavior).
+  The ideal fix for both nondet_list and nondet_dict is simple: call
+  nondet_int()/nondet_float()/etc. fresh inside the loop instead of
+  reusing a single pre-evaluated value. For example:
 
-  nondet_dict: Fixed directly in this file using is-None checks.
-    The default case (key_type=None, value_type=None) generates fresh
-    nondet_int() keys and values each iteration, allowing multiple entries.
-    For typed cases, the passed value is reused (original single-entry
-    behavior) because isinstance cannot determine the parameter type.
-    Note: symbolic keys cause O(N²) solver complexity from the dict model's
-    contains/find_index search. Use --unwind 3 for dict tests to keep
-    solver performance manageable.
+      # Ideal nondet_list fix (cannot be done here):
+      while i < size:
+          result.append(nondet_int())   # fresh value each iteration
+
+      # Ideal nondet_dict fix (cannot be done here):
+      while i < size:
+          result[nondet_int()] = nondet_int()   # fresh key and value
+
+  However, these fixes cannot be implemented in this model file due to
+  three ESBMC frontend limitations:
+
+    1. Branch type mixing (affects list only): the frontend processes ALL
+       if/elif branches when converting model files (is_loading_models=true).
+       Multiple result.append() calls with different types pollute
+       list_type_map, causing "unresolved operand type" errors.
+
+    2. Parameter type erasure: unannotated parameters get type void*,
+       so isinstance(elem_type, bool) always sees void* regardless of
+       the actual argument. (python_converter.cpp:8069)
+
+    3. Type merging: assigning different types to the same variable in
+       different branches (e.g. k = nondet_int() vs k = key_type)
+       triggers if2t type assertions in the IR.
+
+  The preprocessor (preprocessor.py::_expand_nondet_call) works around
+  all three by expanding calls inline as user code:
+
+    nondet_list: while loop with fresh nondet_*() per iteration.
+      x = nondet_list(3, nondet_bool())  -->
+        x: list[bool] = []; ...
+        while i < size: x.append(nondet_bool()); i += 1
+
+    nondet_dict: if-chain with concrete sequential keys to avoid O(N^2)
+      solver explosion from symbolic key comparisons in contains/find_index.
+      x = nondet_dict(3)  -->
+        x: dict[int,int] = {}; ...
+        if size >= 1: x[0] = nondet_int()
+        if size >= 2: x[1] = nondet_int()
+        if size >= 3: x[2] = nondet_int()
+
+  Only direct assignments (x = nondet_list/dict(...)) are expanded.
+  Other contexts use the model functions below as fallback.
+
+  Once the frontend bugs above are fixed, the preprocessor expansion
+  can be removed and the fixes moved directly into this file.
 
 USAGE:
     # Lists:
@@ -69,8 +95,7 @@ def nondet_list(max_size: int = _DEFAULT_NONDET_SIZE, elem_type: Any = None) -> 
 
     Note: The preprocessor expands this call inline so that each element
     gets a fresh nondeterministic value. This model function body is the
-    original (unfixed) fallback for non-expanded contexts. See the
-    KNOWN LIMITATIONS note at the top of this file for details.
+    fallback for non-expanded contexts (e.g. return values, nested exprs).
 
     Args:
         max_size: Maximum size of the list (default: 8).
@@ -102,11 +127,9 @@ def nondet_dict(max_size: int = _DEFAULT_NONDET_SIZE,
     """
     Return a non-deterministic dictionary with specified key and value types.
 
-    For the default case (no type args), each iteration generates fresh
-    nondet_int() keys and values, allowing the dict to have multiple
-    distinct entries. For typed cases, the passed value is reused each
-    iteration (single-entry behavior) because isinstance cannot determine
-    the parameter type due to frontend type erasure (void*).
+    Note: The preprocessor expands this call inline with concrete sequential
+    keys and fresh nondet values. This model function body is the fallback
+    for non-expanded contexts (e.g. return values, nested exprs).
 
     Args:
         max_size: Maximum size of the dictionary (default: 8).
@@ -125,23 +148,18 @@ def nondet_dict(max_size: int = _DEFAULT_NONDET_SIZE,
         d = nondet_dict(key_type=nondet_str(), value_type=nondet_float())
         d = nondet_dict(max_size=10, key_type=nondet_int(), value_type=nondet_bool())
     """
+    # Default to nondet_int if no types specified
+    if key_type is None:
+        key_type = nondet_int()
+    if value_type is None:
+        value_type = nondet_int()
+
     result: dict = {}
     size: int = _nondet_size(max_size)
 
     i: int = 0
-    if key_type is None and value_type is None:
-        # Default case: fresh keys and values each iteration.
-        while i < size:
-            result[nondet_int()] = nondet_int()
-            i = i + 1
-    else:
-        # Typed case: reuse passed values (original single-entry behavior).
-        if key_type is None:
-            key_type = nondet_int()
-        if value_type is None:
-            value_type = nondet_int()
-        while i < size:
-            result[key_type] = value_type
-            i = i + 1
+    while i < size:
+        result[key_type] = value_type
+        i = i + 1
 
     return result
