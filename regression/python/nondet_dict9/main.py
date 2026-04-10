@@ -7,6 +7,7 @@ def test_nondet_dict_float_values() -> None:
     k: int = nondet_int()
     if k in x:
         v = x[k]
-        # Float value comparisons
-        assert v == v  # Reflexivity
+        # v == v is not safe for floats (NaN != NaN per IEEE 754).
+        # Just verify value access succeeds.
+        assert isinstance(v, float)
 test_nondet_dict_float_values()
