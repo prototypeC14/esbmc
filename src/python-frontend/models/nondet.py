@@ -129,18 +129,19 @@ def nondet_dict(max_size: int = _DEFAULT_NONDET_SIZE,
     size: int = _nondet_size(max_size)
 
     i: int = 0
-    while i < size:
-        # Default case: generate fresh keys/values each iteration.
-        # Typed case: reuse passed value (original single-entry behavior).
+    if key_type is None and value_type is None:
+        # Default case: fresh keys and values each iteration.
+        while i < size:
+            result[nondet_int()] = nondet_int()
+            i = i + 1
+    else:
+        # Typed case: reuse passed values (original single-entry behavior).
         if key_type is None:
-            k = nondet_int()
-        else:
-            k = key_type
+            key_type = nondet_int()
         if value_type is None:
-            v = nondet_int()
-        else:
-            v = value_type
-        result[k] = v
-        i = i + 1
+            value_type = nondet_int()
+        while i < size:
+            result[key_type] = value_type
+            i = i + 1
 
     return result
