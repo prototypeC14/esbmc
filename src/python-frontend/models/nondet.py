@@ -16,19 +16,20 @@ KNOWN LIMITATIONS — WHY FIXES ARE IN THE PREPROCESSOR:
           result[nondet_int()] = nondet_int()   # fresh key and value
 
   However, these fixes cannot be implemented in this model file due to
-  two ESBMC frontend limitations:
+  two issues specific to the model loading context (is_loading_models=true):
 
-    1. Branch type mixing (affects list only): the frontend processes ALL
-       if/elif branches when converting model files (is_loading_models=true).
-       Multiple result.append() calls with different types pollute
-       list_type_map, causing "unresolved operand type" errors.
+    1. Branch type mixing (affects list): the frontend processes ALL
+       if/elif branches when converting model function bodies. Multiple
+       result.append() calls with different types pollute list_type_map,
+       causing "unresolved operand type" errors on element access.
 
-    2. Parameter type erasure: unannotated parameters get type void*,
-       so isinstance(elem_type, bool) always sees void* regardless of
-       the actual argument. (python_converter.cpp:8069)
+    2. Parameter type erasure (affects isinstance): in model functions,
+       unannotated parameters lose the actual argument type, so
+       isinstance-based type dispatch does not work reliably.
 
-  The preprocessor (preprocessor.py::_expand_nondet_call) works around
-  both by expanding calls inline as user code:
+  These issues do not affect user code. The preprocessor
+  (preprocessor.py::_expand_nondet_call) works around both by expanding
+  calls inline as user code:
 
     nondet_list: while loop with fresh nondet_*() per iteration.
       x = nondet_list(3, nondet_bool())  -->
