@@ -2977,8 +2977,22 @@ class Preprocessor(ast.NodeTransformer):
                         val_func = fn
                         val_type_name = self._get_nondet_type_name(kw.value)
 
-        L = ast.Load()
-        S = ast.Store()
+        # Helper to create AST nodes
+        def name(n, ctx=ast.Load()):
+            nd = ast.Name(id=n, ctx=ctx)
+            self.ensure_all_locations(nd, loc)
+            return nd
+
+        def const(v):
+            nd = ast.Constant(value=v)
+            self.ensure_all_locations(nd, loc)
+            return nd
+
+        def call_node(fn, args=None):
+            nd = ast.Call(func=name(fn), args=args or [], keywords=[])
+            self.ensure_all_locations(nd, loc)
+            return nd
+
         size_var = f'__nd_size_{uid}'
         idx_var = f'__nd_i_{uid}'
         var_name = target.id
@@ -2986,25 +3000,24 @@ class Preprocessor(ast.NodeTransformer):
 
         # 1. Initialize collection: x: list[T] = [] or x: dict[K,V] = {}
         if func_name == 'nondet_list':
-            init_val = ast.List(elts=[], ctx=L)
+            init_val = ast.List(elts=[], ctx=ast.Load())
             annotation = ast.Subscript(
-                value=self.create_name_node('list', L, loc),
-                slice=self.create_name_node(elem_type_name, L, loc),
-                ctx=L)
+                value=name('list'),
+                slice=name(elem_type_name),
+                ctx=ast.Load())
         else:
             init_val = ast.Dict(keys=[], values=[])
             annotation = ast.Subscript(
-                value=self.create_name_node('dict', L, loc),
+                value=name('dict'),
                 slice=ast.Tuple(
-                    elts=[self.create_name_node(key_type_name, L, loc),
-                          self.create_name_node(val_type_name, L, loc)],
-                    ctx=L),
-                ctx=L)
+                    elts=[name(key_type_name), name(val_type_name)],
+                    ctx=ast.Load()),
+                ctx=ast.Load())
         self.ensure_all_locations(init_val, loc)
         self.ensure_all_locations(annotation, loc)
 
         init_assign = ast.AnnAssign(
-            target=self.create_name_node(var_name, S, loc),
+            target=name(var_name, ast.Store()),
             annotation=annotation,
             value=init_val, simple=1)
         self.ensure_all_locations(init_assign, loc)
@@ -3015,23 +3028,18 @@ class Preprocessor(ast.NodeTransformer):
         self.known_variable_types[var_name] = 'list' if func_name == 'nondet_list' else 'dict'
 
         # 2. size = nondet_int(); assume(size >= 0); assume(size <= max_size)
-        nondet_int_call = ast.Call(
-            func=self.create_name_node('nondet_int', L, loc), args=[], keywords=[])
-        self.ensure_all_locations(nondet_int_call, loc)
-
         size_assign = ast.AnnAssign(
-            target=self.create_name_node(size_var, S, loc),
-            annotation=self.create_name_node('int', L, loc),
-            value=nondet_int_call, simple=1)
+            target=name(size_var, ast.Store()),
+            annotation=name('int'),
+            value=call_node('nondet_int'), simple=1)
         self.ensure_all_locations(size_assign, loc)
         stmts.append(size_assign)
 
-        for op_cls, bound in [(ast.GtE, self.create_constant_node(0, loc)),
-                              (ast.LtE, max_size_node)]:
+        for op_cls, bound in [(ast.GtE, const(0)), (ast.LtE, max_size_node)]:
             assume_call = ast.Expr(value=ast.Call(
-                func=self.create_name_node('__ESBMC_assume', L, loc),
+                func=name('__ESBMC_assume'),
                 args=[ast.Compare(
-                    left=self.create_name_node(size_var, L, loc),
+                    left=name(size_var),
                     ops=[op_cls()],
                     comparators=[bound])],
                 keywords=[]))
@@ -3040,40 +3048,34 @@ class Preprocessor(ast.NodeTransformer):
 
         # 3. i = 0
         idx_assign = ast.AnnAssign(
-            target=self.create_name_node(idx_var, S, loc),
-            annotation=self.create_name_node('int', L, loc),
-            value=self.create_constant_node(0, loc), simple=1)
+            target=name(idx_var, ast.Store()),
+            annotation=name('int'),
+            value=const(0), simple=1)
         self.ensure_all_locations(idx_assign, loc)
         stmts.append(idx_assign)
 
         # 4. Build the collection
         if func_name == 'nondet_list':
             # List: while loop with append — no search, O(N).
-            elem_call = ast.Call(
-                func=self.create_name_node(elem_func, L, loc), args=[], keywords=[])
-            self.ensure_all_locations(elem_call, loc)
-
             append_call = ast.Expr(value=ast.Call(
                 func=ast.Attribute(
-                    value=self.create_name_node(var_name, L, loc),
-                    attr='append', ctx=L),
-                args=[elem_call],
+                    value=name(var_name),
+                    attr='append', ctx=ast.Load()),
+                args=[call_node(elem_func)],
                 keywords=[]))
             self.ensure_all_locations(append_call, loc)
 
             inc = ast.Assign(
-                targets=[self.create_name_node(idx_var, S, loc)],
+                targets=[name(idx_var, ast.Store())],
                 value=ast.BinOp(
-                    left=self.create_name_node(idx_var, L, loc),
-                    op=ast.Add(),
-                    right=self.create_constant_node(1, loc)))
+                    left=name(idx_var), op=ast.Add(), right=const(1)))
             self.ensure_all_locations(inc, loc)
 
             while_stmt = ast.While(
                 test=ast.Compare(
-                    left=self.create_name_node(idx_var, L, loc),
+                    left=name(idx_var),
                     ops=[ast.Lt()],
-                    comparators=[self.create_name_node(size_var, L, loc)]),
+                    comparators=[name(size_var)]),
                 body=[append_call, inc],
                 orelse=[])
             self.ensure_all_locations(while_stmt, loc)
@@ -3099,23 +3101,19 @@ class Preprocessor(ast.NodeTransformer):
 
             for entry_idx in range(max_entries):
                 concrete_key = self._make_concrete_key(key_type_name, entry_idx, loc)
-                val_call = ast.Call(
-                    func=self.create_name_node(val_func, L, loc), args=[], keywords=[])
-                self.ensure_all_locations(val_call, loc)
-
                 dict_assign = ast.Assign(
                     targets=[ast.Subscript(
-                        value=self.create_name_node(var_name, L, loc),
+                        value=name(var_name),
                         slice=concrete_key,
-                        ctx=S)],
-                    value=val_call)
+                        ctx=ast.Store())],
+                    value=call_node(val_func))
                 self.ensure_all_locations(dict_assign, loc)
 
                 if_stmt = ast.If(
                     test=ast.Compare(
-                        left=self.create_name_node(size_var, L, loc),
+                        left=name(size_var),
                         ops=[ast.GtE()],
-                        comparators=[self.create_constant_node(entry_idx + 1, loc)]),
+                        comparators=[const(entry_idx + 1)]),
                     body=[dict_assign],
                     orelse=[])
                 self.ensure_all_locations(if_stmt, loc)
