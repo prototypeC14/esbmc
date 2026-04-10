@@ -591,12 +591,8 @@ exprt python_list::get()
     exprt list_push_func_call =
       build_push_list_call(list_symbol, list_value_, elem);
     converter_.add_instruction(list_push_func_call);
-    // Skip list_type_map registration during model loading to prevent
-    // branch mixing: model functions with if/elif dispatch register
-    // multiple element types for the same list, confusing later access.
-    if (!converter_.is_loading_models)
-      list_type_map[list_id].push_back(
-        std::make_pair(elem.identifier().as_string(), elem.type()));
+    list_type_map[list_id].push_back(
+      std::make_pair(elem.identifier().as_string(), elem.type()));
   }
 
   return symbol_expr(list_symbol);
