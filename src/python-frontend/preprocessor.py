@@ -3626,9 +3626,16 @@ class Preprocessor(ast.NodeTransformer):
                 and isinstance(node.value, ast.Call)
                 and isinstance(node.value.func, ast.Name)
                 and node.value.func.id in ('nondet_list', 'nondet_dict')):
-            expanded = self._expand_nondet_call(node.targets[0], node.value, node)
-            if expanded is not None:
-                return expanded
+            call = node.value
+            # Skip typed nondet_dict (has keyword args like key_type/value_type).
+            # Multi-entry dicts with x[k] access expose v==v failures due to
+            # NaN/identity issues when values go through memory operations.
+            if call.func.id == 'nondet_dict' and call.keywords:
+                pass
+            else:
+                expanded = self._expand_nondet_call(node.targets[0], call, node)
+                if expanded is not None:
+                    return expanded
 
         # Handle x = next(g) for generator variables
         next_gen_info = self._find_generator_next_call(node.value)
