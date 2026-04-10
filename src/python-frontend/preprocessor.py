@@ -2944,36 +2944,22 @@ class Preprocessor(ast.NodeTransformer):
         if call.args:
             max_size_node = call.args[0]
 
-        # Determine nondet type functions
-        def _get_nondet_func(call_arg):
-            """Extract function name like 'nondet_bool' from a Call node."""
-            if isinstance(call_arg, ast.Call) and isinstance(call_arg.func, ast.Name):
-                return call_arg.func.id
-            return None
-
-        def _get_type_name(call_arg):
-            """Extract type name like 'bool' from nondet_bool() Call node."""
-            fn = _get_nondet_func(call_arg)
-            if fn and fn.startswith('nondet_'):
-                return fn[len('nondet_'):]
-            return 'int'
-
         if func_name == 'nondet_list':
             elem_func = 'nondet_int'
             elem_type_name = 'int'
             # Second positional arg
             if len(call.args) >= 2:
-                fn = _get_nondet_func(call.args[1])
+                fn = self._get_nondet_func_name(call.args[1])
                 if fn:
                     elem_func = fn
-                    elem_type_name = _get_type_name(call.args[1])
+                    elem_type_name = self._get_nondet_type_name(call.args[1])
             # Keyword arg
             for kw in call.keywords:
                 if kw.arg == 'elem_type':
-                    fn = _get_nondet_func(kw.value)
+                    fn = self._get_nondet_func_name(kw.value)
                     if fn:
                         elem_func = fn
-                        elem_type_name = _get_type_name(kw.value)
+                        elem_type_name = self._get_nondet_type_name(kw.value)
         elif func_name == 'nondet_dict':
             key_func = 'nondet_int'
             val_func = 'nondet_int'
@@ -2981,15 +2967,15 @@ class Preprocessor(ast.NodeTransformer):
             val_type_name = 'int'
             for kw in call.keywords:
                 if kw.arg == 'key_type':
-                    fn = _get_nondet_func(kw.value)
+                    fn = self._get_nondet_func_name(kw.value)
                     if fn:
                         key_func = fn
-                        key_type_name = _get_type_name(kw.value)
+                        key_type_name = self._get_nondet_type_name(kw.value)
                 elif kw.arg == 'value_type':
-                    fn = _get_nondet_func(kw.value)
+                    fn = self._get_nondet_func_name(kw.value)
                     if fn:
                         val_func = fn
-                        val_type_name = _get_type_name(kw.value)
+                        val_type_name = self._get_nondet_type_name(kw.value)
 
         # Helper to create AST nodes
         def name(n, ctx=ast.Load()):
@@ -3137,6 +3123,22 @@ class Preprocessor(ast.NodeTransformer):
             ast.fix_missing_locations(s)
 
         return stmts
+
+    @staticmethod
+    def _get_nondet_func_name(call_arg):
+        """Extract function name like 'nondet_bool' from a Call node."""
+        if isinstance(call_arg, ast.Call) and isinstance(call_arg.func, ast.Name):
+            return call_arg.func.id
+        return None
+
+    @staticmethod
+    def _get_nondet_type_name(call_arg):
+        """Extract type name from a nondet call: nondet_bool() → 'bool'."""
+        if isinstance(call_arg, ast.Call) and isinstance(call_arg.func, ast.Name):
+            name = call_arg.func.id
+            if name.startswith('nondet_'):
+                return name[len('nondet_'):]
+        return 'int'
 
     def _make_concrete_key(self, key_type_name, index, loc):
         """Generate a concrete key AST node for dict if-chain expansion.
