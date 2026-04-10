@@ -15,28 +15,19 @@ KNOWN LIMITATIONS — WHY FIXES ARE IN THE PREPROCESSOR:
       while i < size:
           result[nondet_int()] = nondet_int()   # fresh key and value
 
-  However, these fixes cannot be implemented in this model file due to:
+  However, these fixes cannot be implemented in this model file:
 
-    1. Branch type mixing (ESBMC bug, affects both user and model code):
-       when a function has if/elif branches that append different types to
-       the same list, list_type_map gets polluted with conflicting entries,
-       causing "unresolved operand type" errors on element access.
-       Reproduction:
-           def f(flag=False):
-               result = []
-               if flag: result.append(1.0)
-               else:    result.append(1)
-               return result
-           x = f(False); x[0] = 42; assert x[0] == 42  # ERROR
+    nondet_list: adding if/elif branches with different result.append()
+      types (e.g. nondet_int() vs nondet_float()) causes
+      "unresolved operand type" errors when accessing list elements.
 
-    2. Parameter type erasure (model loading context only): in model
-       functions, unannotated parameters lose the actual argument type,
-       so isinstance-based type dispatch does not work reliably.
-       This does not affect user code.
+    nondet_dict: using isinstance to dispatch nondet type inside model
+      functions does not work reliably — the type check fails even when
+      the correct type is passed.
 
   The preprocessor (preprocessor.py::_expand_nondet_call) works around
-  both by expanding calls inline as user code, where each expansion has
-  only one type (no branches):
+  both by expanding calls inline, where each expansion has only one
+  type and no branches:
 
     nondet_list: while loop with fresh nondet_*() per iteration.
       x = nondet_list(3, nondet_bool())  -->
